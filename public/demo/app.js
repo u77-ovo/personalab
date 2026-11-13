@@ -152,7 +152,7 @@ function loadState() {
 }
 
 function normalizeSparkRun(run) {
-  return { ...run, sources: run.sources || ["旧版演示记录"], evidence: run.evidence || [] };
+  return { ...run, sources: run.sources || ["旧版本地记录"], evidence: run.evidence || [] };
 }
 
 function normalizeMirrorRun(run) {
@@ -515,13 +515,14 @@ function taskCardHTML(task, readOnly = false) {
 }
 
 function boardMaterialsHTML(materials, readOnly = false) {
-  return `<div class="board-toolbar"><label class="board-search"><span>⌕</span><input placeholder="按文件名搜索"></label><select><option>全部类型</option><option>图片</option><option>文档</option><option>CSV</option><option>链接</option></select><div class="view-switch"><button class="${state.materialView === "grid" ? "active" : ""}" data-material-view="grid">▦</button><button class="${state.materialView === "list" ? "active" : ""}" data-material-view="list">☷</button></div>${readOnly ? `<span class="archived-readonly">归档项目 · 只读</span>` : `<button class="toolbar-create" data-open-modal="material">⇧ 上传素材</button>`}</div>
-    <div class="board-materials ${state.materialView === "list" ? "list" : ""}">${materials.length ? materials.map(item=>{ const evidence=materialEvidenceMeta(item); return `<article><span class="material-preview">${escapeHTML(item.icon || "文")}</span><div><span class="evidence-badge ${evidence.className}">${evidence.label}</span><strong>${escapeHTML(item.title)}</strong><p>${escapeHTML(item.content)}</p><small>${escapeHTML(item.type)} · ${escapeHTML(item.source)} · ${escapeHTML(item.date)}</small></div>${readOnly ? "" : `<button aria-label="素材操作">•••</button>`}</article>`; }).join("") : `<div class="board-empty"><span>⇧</span><h3>还没有项目素材</h3><p>${readOnly ? "恢复项目后，可以继续添加或整理素材。" : "支持图片、PDF、文档、CSV 和网页链接；已绑定任务的素材会保留快照。"}</p>${readOnly ? "" : `<button class="button button-primary" data-open-modal="material">添加素材</button>`}</div>`}</div>`;
+  const types = [...new Set(materials.map(item=>item.type).filter(Boolean))];
+  return `<div class="board-toolbar"><label class="board-search"><span>⌕</span><input id="material-search" placeholder="搜索资料标题、内容或来源"></label><select id="material-type-filter"><option value="">全部类型</option>${types.map(type=>`<option>${escapeHTML(type)}</option>`).join("")}</select><div class="view-switch"><button class="${state.materialView === "grid" ? "active" : ""}" data-material-view="grid" aria-label="网格视图">▦</button><button class="${state.materialView === "list" ? "active" : ""}" data-material-view="list" aria-label="列表视图">☷</button></div>${readOnly ? `<span class="archived-readonly">归档项目 · 只读</span>` : `<button class="toolbar-create" data-open-modal="material">＋ 添加资料</button>`}</div>
+    <div class="board-materials ${state.materialView === "list" ? "list" : ""}">${materials.length ? materials.map(item=>{ const evidence=materialEvidenceMeta(item); return `<article class="board-material-card" data-material-search="${escapeHTML(`${item.title} ${item.content} ${item.source}`).toLowerCase()}" data-material-type="${escapeHTML(item.type)}"><span class="material-preview">${escapeHTML(item.icon || "文")}</span><div><span class="evidence-badge ${evidence.className}">${evidence.label}</span><strong>${escapeHTML(item.title)}</strong><p>${escapeHTML(item.content)}</p><small>${escapeHTML(item.type)} · ${escapeHTML(item.source)} · ${escapeHTML(item.date)}</small></div>${readOnly ? "" : `<button data-delete-material="${item.id}" aria-label="删除资料“${escapeHTML(item.title)}”" title="删除资料">×</button>`}</article>`; }).join("") : `<div class="board-empty"><span>＋</span><h3>还没有项目资料</h3><p>${readOnly ? "恢复项目后，可以继续添加或整理资料。" : "先保存资料标题、来源和关键原文或摘要；当前本地版不会上传或解析附件。"}</p>${readOnly ? "" : `<button class="button button-primary" data-open-modal="material">添加第一份资料</button>`}</div>`}</div>`;
 }
 
 function boardReportsHTML(reports) {
-  return `<div class="board-toolbar"><label class="board-search"><span>⌕</span><input placeholder="搜索报告中的痛点或建议"></label><select><option>全部任务类型</option><option>Spark</option><option>Mirror</option></select><select><option>全部时间</option><option>最近 7 天</option><option>最近 30 天</option></select><button class="toolbar-create secondary">批量操作⌄</button></div>
-    <div class="board-report-grid">${reports.length ? reports.map(report=>`<article class="board-report-card"><div><span class="report-kind ${report.kind === "Spark" ? "spark" : "mirror"}">${report.kind === "Spark" ? "✦" : "◫"} ${report.kind}</span><span class="report-round">第 ${reportRound(report)} 轮</span></div><h3>${escapeHTML(report.title)}</h3><p>${escapeHTML(report.desc)}</p><small>${formatRelativeTime(report.createdAt)} · 来自对应任务</small><footer><button data-preview-report="${report.id}">预览</button>${comparisonPartner(report) ? `<button data-compare-report="${report.id}">轮次对比</button>` : ""}<button data-download-report="${report.id}">导出⌄</button></footer></article>`).join("") : `<div class="board-empty wide"><span>▥</span><h3>完成任务后，报告会自动归档</h3><p>Spark 保存需求洞察，Mirror 保存路径问题与八维评分。</p></div>`}</div>`;
+  return `<div class="board-toolbar"><label class="board-search"><span>⌕</span><input id="report-search" placeholder="搜索报告标题或摘要"></label><select id="report-kind-filter"><option value="">全部类型</option><option>Spark</option><option>Mirror</option></select><select id="report-time-filter"><option value="">全部时间</option><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></div>
+    <div class="board-report-grid">${reports.length ? reports.map(report=>`<article class="board-report-card" data-report-search="${escapeHTML(`${report.title} ${report.desc}`).toLowerCase()}" data-report-kind="${report.kind}" data-report-time="${report.createdAt || 0}"><div><span class="report-kind ${report.kind === "Spark" ? "spark" : "mirror"}">${report.kind === "Spark" ? "✦" : "◫"} ${report.kind}</span><span class="report-round">第 ${reportRound(report)} 轮</span></div><h3>${escapeHTML(report.title)}</h3><p>${escapeHTML(report.desc)}</p><small>${formatRelativeTime(report.createdAt)} · 来自对应任务</small><footer><button data-preview-report="${report.id}">预览</button>${comparisonPartner(report) ? `<button data-compare-report="${report.id}">轮次对比</button>` : ""}<button data-download-report="${report.id}">导出</button></footer></article>`).join("") : `<div class="board-empty wide"><span>▥</span><h3>完成任务后，报告会自动归档</h3><p>Spark 保存需求洞察，Mirror 保存路径问题与八维评分。</p></div>`}</div>`;
 }
 
 function metric(icon, value, label, color) {
@@ -541,7 +542,7 @@ function renderSpark() {
   const direction = seed.direction || (state.materials.length ? "大学生经常制定学习计划，但面对临时任务时很难持续调整。希望验证 AI 动态规划能否真正减轻负担。" : "");
   return `
     <div class="page-heading"><div><p class="eyebrow" style="color:var(--orange)">SPARK / 播种</p><h1>从一个方向，找到值得验证的问题</h1><p>结合用户资料与公开信息方向，通过多 Persona 内部圆桌提炼需求、分歧、风险和机会。</p></div><span class="tag tag-orange">适合：想法与概念阶段</span></div>
-    <div class="callout callout-info" style="margin-bottom:16px"><strong>演示说明：</strong>当前版本使用内置示例内容模拟分析过程，不会真正联网或调用外部模型；正式产品将保留每条公开资料的来源链接。</div>
+    <div class="callout callout-info" style="margin-bottom:16px"><strong>当前能力：</strong>本地版使用内置逻辑生成研究准备结果，不会真正联网或调用外部模型；接入正式服务后会保留每条公开资料的来源链接。</div>
     ${draft ? `<div class="draft-context draft-spark"><span>草稿已恢复</span><strong>${escapeHTML(draft.name)}</strong><p>${escapeHTML(draft.iterationFocus || draft.note || "继续完善本轮需求探索")}</p><button data-clear-draft>退出草稿</button></div>` : ""}
     <div class="lab-layout">
       <form id="spark-form" class="card lab-panel">
@@ -610,7 +611,7 @@ function runSpark(form) {
     }
   }
   if (sources.includes("公开资料")) evidence.push({
-    id:"W-01", title:"公开资料检索方向", kind:"联网方向", quote:`正式版将围绕“${direction.slice(0, 80)}”搜索公开评价与行业资料，并保存网页来源。`, source:"本地演示未联网", status:"待正式检索"
+    id:"W-01", title:"公开资料检索方向", kind:"联网方向", quote:`正式版将围绕“${direction.slice(0, 80)}”搜索公开评价与行业资料，并保存网页来源。`, source:"本地版未联网", status:"待正式检索"
   });
   const texts = [
     "我真正需要的不是更多提醒，而是在任务冲突时看懂系统为什么这样调整，以及我还能怎么选。",
@@ -658,8 +659,8 @@ function renderMirror() {
   const coreTask = seed.task || "添加一个临时作业，并完成本周任务的重新安排";
   const materialTypes = ["产品截图 / 多页面图片","Figma 原型链接","已上线网站地址","流程图或操作文档","演示视频","仅有文字流程说明"];
   return `
-    <div class="page-heading"><div><p class="eyebrow" style="color:var(--green)">MIRROR / 预演</p><h1>让虚拟用户先走一遍产品路径</h1><p>接受截图、流程、文档、视频、Figma 链接或网站地址，按固定八维体系诊断体验问题。</p></div><span class="tag tag-green">适合：已有 Demo 或产品</span></div>
-    <div class="callout callout-info" style="margin-bottom:16px"><strong>评分边界：</strong>只有输入足以判断时才给分；证据不足的维度会标记“暂不评分”。本地 Demo 的结果是固定示例，不等同于真实可用性测试。</div>
+    <div class="page-heading"><div><p class="eyebrow" style="color:var(--green)">MIRROR / 预演</p><h1>让虚拟用户先走一遍产品路径</h1><p>接受截图、流程、文档、视频、Figma 链接或网站地址，按固定八维体系诊断体验问题。</p></div><span class="tag tag-green">适合：已有原型或产品</span></div>
+    <div class="callout callout-info" style="margin-bottom:16px"><strong>评分边界：</strong>只有输入足以判断时才给分；证据不足的维度会标记“暂不评分”。本地版结果用于研究准备，不等同于真实可用性测试。</div>
     ${draft ? `<div class="draft-context draft-mirror"><span>${draft.sourceReportId ? `第 ${reportRound(state.reports.find(report=>report.id === draft.sourceReportId)) + 1} 轮复测草稿` : "草稿已恢复"}</span><strong>${escapeHTML(draft.name)}</strong><p>${escapeHTML(draft.iterationFocus || draft.note || "继续完善本轮体验预演")}</p><button data-clear-draft>退出草稿</button></div>` : ""}
     <div class="lab-layout">
       <form id="mirror-form" class="card lab-panel">
@@ -667,7 +668,7 @@ function renderMirror() {
         <div class="panel-body">
           <div class="form-group"><label class="form-label" for="mirror-title">产品 / 页面名称</label><input class="input" id="mirror-title" name="title" value="${escapeHTML(title)}" placeholder="例如：任务规划首页" required></div>
           <div class="form-group"><label class="form-label" for="material-type">你现在有什么？</label><select class="select" id="material-type" name="materialType">${materialTypes.map(type=>`<option ${type === materialType ? "selected" : ""}>${type}</option>`).join("")}</select></div>
-          <div class="form-group"><label class="form-label" for="mirror-link">链接或流程说明 <small>两者任选其一</small></label><textarea class="textarea" id="mirror-link" name="material" placeholder="粘贴 Figma/网站链接，或描述主要页面和操作流程">${escapeHTML(material)}</textarea><label class="upload-box" for="mirror-file" style="margin-top:8px"><input id="mirror-file" name="file" type="file" accept="image/*,.pdf,.ppt,.pptx,.doc,.docx,video/*"><span><span class="upload-icon">⇧</span><strong id="upload-label">也可以上传本地文件</strong><small>演示版只读取文件名，不上传文件内容</small></span></label></div>
+          <div class="form-group"><label class="form-label" for="mirror-link">链接或流程说明 <small>两者任选其一</small></label><textarea class="textarea" id="mirror-link" name="material" placeholder="粘贴 Figma/网站链接，或描述主要页面和操作流程">${escapeHTML(material)}</textarea><label class="upload-box" for="mirror-file" style="margin-top:8px"><input id="mirror-file" name="file" type="file" accept="image/*,.pdf,.ppt,.pptx,.doc,.docx,video/*"><span><span class="upload-icon">⇧</span><strong id="upload-label">选择本地文件</strong><small>当前只记录文件名，不读取或上传文件内容</small></span></label></div>
           <div class="form-group"><label class="form-label" for="mirror-task">希望 Persona 完成的核心任务</label><input class="input" id="mirror-task" name="task" value="${escapeHTML(coreTask)}" required></div>
           <div class="form-group"><span class="form-label">参与预演的 Persona</span>${personaPicker("mirror", draft?.personas)}</div>
           <div class="submit-row"><button class="button button-green" type="submit">◫ ${draft ? "运行本轮复测" : "开始体验预演"}</button><small>本地示例仿真<br>不代替真实用户测试</small></div>
@@ -799,8 +800,8 @@ function renderMaterials() {
 function renderReports() {
   return `
     <div class="page-heading"><div><p class="eyebrow">REPORTS</p><h1>验证报告</h1><p>集中查看每次 Spark 需求探索和 Mirror 体验预演的结论、来源类型与优先级。</p></div></div>
-    <div class="callout callout-warning" style="margin-bottom:18px"><strong>结论边界：</strong>Demo 中的报告是展示用示例。正式版会区分“原始资料事实、Persona 推演、模型推断与待验证假设”，避免把模拟结果当成真实用户结论。</div>
-    ${state.reports.length ? `<div class="grid grid-3">${state.reports.map(r=>`<article class="card report-card"><div class="report-card-top"><span class="report-icon" style="${r.kind==="Mirror"?"color:var(--green);background:var(--green-soft)":""}">${r.kind==="Spark"?"✦":"◫"}</span><span><span class="report-round">第 ${reportRound(r)} 轮</span><span class="tag ${r.kind==="Spark"?"tag-orange":"tag-green"}">${r.kind}</span></span></div><h3>${escapeHTML(r.title)}</h3><p>${escapeHTML(r.desc)}</p><div class="report-footer"><span>${formatRelativeTime(r.createdAt)} · 本地演示</span><span><button class="link-button" data-view-report="${r.id}">查看</button>${comparisonPartner(r) ? `<button class="link-button" data-compare-report="${r.id}">对比</button>` : ""}<button class="link-button" data-download-report="${r.id}">导出 ↓</button></span></div></article>`).join("")}</div>` : `<article class="card empty-state"><div><div class="empty-illustration">▥</div><h3>还没有验证报告</h3><p>完成一次 Spark 或 Mirror 后，报告会自动保存到这里，并支持导出为 Markdown 文档。</p><div style="display:flex;gap:8px;justify-content:center;margin-top:16px"><button class="button button-purple button-sm" data-go="spark">运行 Spark</button><button class="button button-green button-sm" data-go="mirror">运行 Mirror</button></div></div></article>`}`;
+    <div class="callout callout-warning" style="margin-bottom:18px"><strong>结论边界：</strong>本地版报告用于研究准备。正式服务会区分“原始资料事实、Persona 推演、模型推断与待验证假设”，避免把模拟结果当成真实用户结论。</div>
+    ${state.reports.length ? `<div class="grid grid-3">${state.reports.map(r=>`<article class="card report-card"><div class="report-card-top"><span class="report-icon" style="${r.kind==="Mirror"?"color:var(--green);background:var(--green-soft)":""}">${r.kind==="Spark"?"✦":"◫"}</span><span><span class="report-round">第 ${reportRound(r)} 轮</span><span class="tag ${r.kind==="Spark"?"tag-orange":"tag-green"}">${r.kind}</span></span></div><h3>${escapeHTML(r.title)}</h3><p>${escapeHTML(r.desc)}</p><div class="report-footer"><span>${formatRelativeTime(r.createdAt)} · 本地保存</span><span><button class="link-button" data-view-report="${r.id}">查看</button>${comparisonPartner(r) ? `<button class="link-button" data-compare-report="${r.id}">对比</button>` : ""}<button class="link-button" data-download-report="${r.id}">导出 ↓</button></span></div></article>`).join("")}</div>` : `<article class="card empty-state"><div><div class="empty-illustration">▥</div><h3>还没有验证报告</h3><p>完成一次 Spark 或 Mirror 后，报告会自动保存到这里，并支持导出为 Markdown 文档。</p><div style="display:flex;gap:8px;justify-content:center;margin-top:16px"><button class="button button-purple button-sm" data-go="spark">运行 Spark</button><button class="button button-green button-sm" data-go="mirror">运行 Mirror</button></div></div></article>`}`;
 }
 
 function bindPageEvents() {
@@ -845,6 +846,7 @@ function bindPageEvents() {
   document.querySelector("[data-clear-draft]")?.addEventListener("click",()=>{ state.activeDraftTaskId=""; saveState(); renderPage(); showToast("已退出草稿，切换为新任务"); });
   document.querySelectorAll("[data-task-action]").forEach(el=>el.addEventListener("click",()=>handleTaskAction(el.dataset.taskAction,el.dataset.taskId)));
   document.querySelectorAll("[data-material-view]").forEach(el=>el.addEventListener("click",()=>{ state.materialView=el.dataset.materialView; saveState(); renderPage(); }));
+  document.querySelectorAll("[data-delete-material]").forEach(el=>el.addEventListener("click",()=>deleteMaterial(el.dataset.deleteMaterial)));
   document.querySelector("#spark-form")?.addEventListener("submit", e => { e.preventDefault(); runSpark(e.currentTarget); });
   document.querySelector("#mirror-form")?.addEventListener("submit", e => { e.preventDefault(); runMirror(e.currentTarget); });
   document.querySelector("#mirror-file")?.addEventListener("change", e => { const file=e.target.files[0]; document.querySelector("#upload-label").textContent=file?`已选择：${file.name}`:"也可以上传本地文件"; });
@@ -853,6 +855,8 @@ function bindPageEvents() {
   document.querySelectorAll("[data-preview-report]").forEach(el=>el.addEventListener("click",event=>{ event.stopPropagation(); if (el.dataset.previewReport) openReportDrawer(el.dataset.previewReport); }));
   document.querySelectorAll("[data-compare-report]").forEach(el=>el.addEventListener("click",event=>{ event.stopPropagation(); openReportComparison(el.dataset.compareReport); }));
   ["#task-search","#task-kind-filter","#task-status-filter","#task-sort"].forEach(selector=>document.querySelector(selector)?.addEventListener(selector === "#task-search" ? "input" : "change",applyTaskFilters));
+  ["#material-search","#material-type-filter"].forEach(selector=>document.querySelector(selector)?.addEventListener(selector === "#material-search" ? "input" : "change",applyMaterialFilters));
+  ["#report-search","#report-kind-filter","#report-time-filter"].forEach(selector=>document.querySelector(selector)?.addEventListener(selector === "#report-search" ? "input" : "change",applyReportFilters));
   bindResultTabs();
 }
 
@@ -873,6 +877,34 @@ function applyTaskFilters() {
     const visible = (!search || card.dataset.taskName.includes(search)) && (!kind || card.dataset.taskKind === kind) && (!status || card.dataset.taskStatus === status);
     card.hidden = !visible;
   });
+}
+
+function applyMaterialFilters() {
+  const search = (document.querySelector("#material-search")?.value || "").trim().toLowerCase();
+  const type = document.querySelector("#material-type-filter")?.value || "";
+  document.querySelectorAll(".board-material-card").forEach(card=>{
+    card.hidden = !((!search || card.dataset.materialSearch.includes(search)) && (!type || card.dataset.materialType === type));
+  });
+}
+
+function applyReportFilters() {
+  const search = (document.querySelector("#report-search")?.value || "").trim().toLowerCase();
+  const kind = document.querySelector("#report-kind-filter")?.value || "";
+  const days = Number(document.querySelector("#report-time-filter")?.value || 0);
+  const cutoff = days ? Date.now() - days * 86400000 : 0;
+  document.querySelectorAll(".board-report-card").forEach(card=>{
+    const recent = !cutoff || Number(card.dataset.reportTime) >= cutoff;
+    card.hidden = !((!search || card.dataset.reportSearch.includes(search)) && (!kind || card.dataset.reportKind === kind) && recent);
+  });
+}
+
+function deleteMaterial(id) {
+  const material = state.materials.find(item=>item.id === id);
+  if (!material || !confirm(`确定删除资料“${material.title}”吗？相关历史报告不会被删除。`)) return;
+  state.materials = state.materials.filter(item=>item.id !== id);
+  saveState();
+  renderPage();
+  showToast("资料已删除");
 }
 
 function handleProjectAction(action) {
@@ -903,7 +935,7 @@ function handleProjectAction(action) {
     state.project = state.projects[0];
     state.activeProjectId = state.project.id;
     state.workspaceView = "projects";
-    saveState(); renderPage(); showToast("项目已从本地演示中删除");
+    saveState(); renderPage(); showToast("项目已从当前浏览器删除");
   }
 }
 
@@ -1036,6 +1068,79 @@ function bindResultTabs() {
   }));
 }
 
+function downloadTextFile(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportWorkspaceData() {
+  const payload = {
+    format: "personalab-local-backup",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    data: state
+  };
+  const date = new Date().toISOString().slice(0,10);
+  downloadTextFile(JSON.stringify(payload, null, 2), `PersonaLab-本地备份-${date}.json`, "application/json;charset=utf-8");
+  showToast("本地数据已导出");
+}
+
+function openDataTools() {
+  const root = document.querySelector("#modal-root");
+  root.innerHTML = `<div class="modal-backdrop" data-close-modal><section class="modal data-tools-modal" role="dialog" aria-modal="true" aria-label="数据管理与备份"><div class="modal-head"><div><span class="modal-kicker">LOCAL DATA</span><h2>管理与备份数据</h2></div><button class="modal-close" data-close-modal aria-label="关闭">×</button></div><div class="modal-body"><div class="local-data-summary"><article><strong>${state.projects.length}</strong><span>项目</span></article><article><strong>${state.materials.length}</strong><span>资料</span></article><article><strong>${state.personas.length}</strong><span>Persona</span></article><article><strong>${state.reports.length}</strong><span>报告</span></article></div><div class="callout callout-info"><strong>数据保存在当前浏览器。</strong>不会自动上传到服务器；清理浏览器数据或更换设备前，请先导出备份。</div><div class="data-tool-list"><article><div><strong>导出完整备份</strong><p>保存项目、资料、Persona、任务和报告，可在另一台设备导入。</p></div><button class="button button-primary" data-export-workspace>导出 JSON</button></article><article><div><strong>导入已有备份</strong><p>导入会替换当前浏览器中的 PersonaLab 数据。</p></div><label class="button button-secondary" for="workspace-import">选择备份文件</label><input id="workspace-import" type="file" accept="application/json,.json" hidden></article></div><div class="data-danger-zone"><div><strong>清空当前数据</strong><p>恢复为空白工作区。该操作不会影响你已经导出的备份。</p></div><button class="button button-danger" data-clear-workspace>清空数据</button></div></div><div class="modal-footer"><button class="button button-secondary" data-close-modal>完成</button></div></section></div>`;
+  root.querySelector(".modal").addEventListener("click",event=>event.stopPropagation());
+  root.querySelectorAll("[data-close-modal]").forEach(el=>el.addEventListener("click",()=>root.innerHTML=""));
+  root.querySelector("[data-export-workspace]").addEventListener("click",exportWorkspaceData);
+  root.querySelector("#workspace-import").addEventListener("change",event=>importWorkspaceData(event.target.files?.[0]));
+  root.querySelector("[data-clear-workspace]").addEventListener("click",()=>{
+    if (!confirm("确定清空当前浏览器中的全部 PersonaLab 数据吗？建议先导出备份。")) return;
+    state = initialState();
+    currentSparkResult = null;
+    currentMirrorResult = null;
+    saveState();
+    root.innerHTML = "";
+    enterDemo("resume");
+    showToast("已恢复为空白工作区");
+  });
+}
+
+function importWorkspaceData(file) {
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { showToast("备份文件不能超过 5MB"); return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const payload = JSON.parse(reader.result);
+      const imported = payload?.format === "personalab-local-backup" ? payload.data : payload;
+      if (!imported || !Array.isArray(imported.projects) || !Array.isArray(imported.personas) || !Array.isArray(imported.materials) || !Array.isArray(imported.reports)) throw new Error("invalid");
+      if (!confirm("导入将替换当前浏览器中的 PersonaLab 数据，是否继续？")) return;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(imported));
+      state = loadState();
+      currentSparkResult = state.sparkRuns[0] || null;
+      currentMirrorResult = state.mirrorRuns[0] || null;
+      saveState();
+      document.querySelector("#modal-root").innerHTML = "";
+      enterDemo("resume");
+      showToast("备份已导入");
+    } catch {
+      showToast("无法识别这个备份文件");
+    }
+  };
+  reader.readAsText(file, "utf-8");
+}
+
+function openHelp() {
+  const root = document.querySelector("#modal-root");
+  root.innerHTML = `<div class="modal-backdrop" data-close-modal><section class="modal help-modal" role="dialog" aria-modal="true" aria-label="使用说明"><div class="modal-head"><div><span class="modal-kicker">QUICK START</span><h2>从哪里开始？</h2></div><button class="modal-close" data-close-modal aria-label="关闭">×</button></div><div class="modal-body"><div class="help-steps"><article><span>1</span><div><strong>建立项目</strong><p>写下产品名称、阶段和希望验证的问题。</p></div></article><article><span>2</span><div><strong>补充资料与 Persona</strong><p>保存已有的用户资料，并选择本轮需要的用户视角。</p></div></article><article><span>3</span><div><strong>选择 Spark 或 Mirror</strong><p>探索需求时使用 Spark；评估原型或完整产品时使用 Mirror。</p></div></article><article><span>4</span><div><strong>保存报告并继续下一轮</strong><p>比较不同轮次，记录修改方向，并定期导出本地备份。</p></div></article></div><div class="callout callout-warning"><strong>当前能力边界：</strong>本地版的分析结果用于流程体验和研究准备，不代表真实 AI、联网检索或真实用户结论。</div></div><div class="modal-footer"><button class="button button-primary" data-close-modal>知道了</button></div></section></div>`;
+  root.querySelector(".modal").addEventListener("click",event=>event.stopPropagation());
+  root.querySelectorAll("[data-close-modal]").forEach(el=>el.addEventListener("click",()=>root.innerHTML=""));
+}
+
 function openModal(type) {
   const root = document.querySelector("#modal-root");
   const configs = {
@@ -1074,7 +1179,7 @@ function saveModal(type) {
     state.project.progress = Math.max(state.project.progress,35);
     state.project.updatedAt = Date.now();
   }
-  saveState(); root.innerHTML=""; renderPage(); showToast("已保存到本地演示项目");
+  saveState(); root.innerHTML=""; renderPage(); showToast("已保存到当前项目");
 }
 
 function viewReport(id) {
@@ -1093,15 +1198,15 @@ function viewReport(id) {
 function downloadReport(id) {
   const report = state.reports.find(r=>r.id===id);
   if (!report) return;
-  let body = `# ${report.title}\n\n> PersonaLab 本地演示报告。内容为示例仿真，不代表真实用户研究结论。\n\n${report.desc}\n\n`;
+  let body = `# ${report.title}\n\n> PersonaLab 本地工作报告。自动生成内容用于研究准备，不代表真实用户研究结论。\n\n${report.desc}\n\n`;
   if (report.kind === "Spark") {
     body += `## 需求与机会\n\n${report.data.insights.map(i=>`- **${i.title}**（${i.level}优先级，来源类型：${i.source}）\n  ${i.detail}${i.evidenceIds?.length ? `\n  依据：${i.evidenceIds.join("、")}` : ""}`).join("\n")}\n\n## 来源记录\n\n${(report.data.evidence || []).map(item=>`- **${item.id} ${item.title}**（${item.status}）\n  ${item.quote}\n  来源：${item.source}`).join("\n") || "本轮没有可追溯资料。"}\n`;
   } else {
     const totalLine = report.data.total === null ? `部分评分：${report.data.rawTotal}/${report.data.scoredMax}，${report.data.unscoredCount} 项暂不评分` : `总分：${report.data.total}/100`;
     body += `## 八维评分\n\n${totalLine}\n\n${report.data.scores.map(s=>`- ${s.name}：${s.score === null ? `暂不评分（${s.reason}）` : `${s.score}/${s.max}`}`).join("\n")}\n\n## 主要问题\n\n${report.data.issues.map(i=>`- **${i.title}**（${i.level}优先级）\n  ${i.detail}`).join("\n")}\n`;
   }
-  const blob = new Blob([body],{type:"text/markdown;charset=utf-8"});
-  const url = URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`${report.title.replace(/[\\/:*?"<>|]/g,"-")}.md`; a.click(); URL.revokeObjectURL(url); showToast("报告已导出");
+  downloadTextFile(body, `${report.title.replace(/[\\/:*?"<>|]/g,"-")}.md`, "text/markdown;charset=utf-8");
+  showToast("报告已导出");
 }
 
 document.addEventListener("click", e => {
@@ -1126,10 +1231,8 @@ document.addEventListener("click", e => {
     applyTheme();
     showToast(state.theme === "dark" ? "已切换为深色模式" : "已切换为浅色模式");
   }
-  if (action === "reset-demo") {
-    if (confirm("确定重置全部本地演示数据吗？这个操作无法撤回。")) { state=sampleState();currentSparkResult=null;currentMirrorResult=null;saveState();navigate("workspace");showToast("演示数据已重置"); }
-  }
-  if (action === "show-help") showToast("建议按“资料库 → Spark → Mirror → 报告”的顺序体验");
+  if (action === "data-tools") openDataTools();
+  if (action === "show-help") openHelp();
 });
 
 document.addEventListener("keydown", event => {

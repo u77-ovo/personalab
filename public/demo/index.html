@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="PersonaLab 是连接用户资料、虚拟 Persona 与产品方案的 AI 产品研究与验证工作台，帮助团队探索需求、评估体验并持续优化产品。"
+    />
+    <title>PersonaLab · AI 产品研究与验证工作台</title>
+    <link rel="preload" as="image" href="./assets/personalab-logo.png" />
+    <link rel="preload" as="image" href="./assets/personalab-xiaop.webp" type="image/webp" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main id="landing" class="landing">
+      <nav class="landing-nav">
+        <a class="brand brand-landing" href="#" aria-label="PersonaLab 首页">
+          <img class="brand-wordmark" src="./assets/personalab-logo.png" alt="PersonaLab" />
+        </a>
+        <div class="landing-nav-right">
+          <span class="status-pill"><span class="status-dot"></span>PersonaLab 1.0</span>
+          <button id="resume-button" class="button button-ghost" data-action="resume-demo" hidden>继续上次项目</button>
+          <button class="button button-ghost" data-action="enter-empty">从空白开始</button>
+        </div>
+      </nav>
+
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">AI PRODUCT RESEARCH &amp; VALIDATION WORKSPACE</p>
+          <h1>从需求探索，<br />到产品持续优化。</h1>
+          <p class="hero-lead">
+            PersonaLab 是连接用户资料、虚拟 Persona 与产品方案的 AI 产品研究与验证工作台，帮助团队探索需求、评估体验并持续优化产品。
+          </p>
+          <div class="hero-actions">
+            <button class="button button-primary button-large" data-action="enter-sample">
+              体验完整示例
+              <span aria-hidden="true">→</span>
+            </button>
+            <button class="button button-secondary button-large" data-action="enter-empty">
+              创建验证项目
+            </button>
+          </div>
+          <div class="hero-note">
+            <span>无需注册</span>
+            <span>完整流程</span>
+            <span>浏览器本地保存</span>
+          </div>
+        </div>
+
+        <div class="hero-visual" aria-label="PersonaLab 工作流预览">
+          <div class="orbit orbit-one"></div>
+          <div class="orbit orbit-two"></div>
+          <div class="hero-card hero-card-main">
+            <div class="mini-head">
+              <span class="mini-logo">P</span>
+              <span>本轮验证</span>
+              <span class="mini-tag">进行中</span>
+            </div>
+            <h3>校园 AI 学习助手</h3>
+            <p>目标：验证任务规划功能是否真正降低学生的学习负担</p>
+            <div class="mini-personas">
+              <span class="avatar avatar-purple">新</span>
+              <span class="avatar avatar-orange">效</span>
+              <span class="avatar avatar-green">隐</span>
+              <span class="avatar avatar-blue">障</span>
+              <span class="avatar-more">+2</span>
+            </div>
+            <div class="mini-progress">
+              <span style="width: 74%"></span>
+            </div>
+            <div class="mini-footer">
+              <span>已发现 7 条需求</span>
+              <strong>体验评分 73</strong>
+            </div>
+          </div>
+          <div class="hero-card hero-card-spark">
+            <span class="module-icon module-icon-spark">✦</span>
+            <div><strong>Spark 探需</strong><small>探索需求、分歧与产品机会</small></div>
+          </div>
+          <div class="hero-card hero-card-mirror">
+            <span class="module-icon module-icon-mirror">◫</span>
+            <div><strong>Mirror 预演</strong><small>评估原型与完整产品体验</small></div>
+          </div>
+          <div class="hero-xiaop" aria-label="PersonaLab 专属 IP 小P">
+            <div class="xiaop-speech"><strong>换个用户视角看看？</strong><span>小P会带着不同 Persona 进入你的产品。</span></div>
+            <img src="./assets/personalab-xiaop.webp" alt="拿着放大镜的 PersonaLab 小P" />
+          </div>
+        </div>
+      </section>
+
+      <section class="landing-flow" aria-label="产品核心流程">
+        <div class="flow-item"><span>01</span><strong>探索需求</strong><small>资料、方向与用户问题</small></div>
+        <div class="flow-line"></div>
+        <div class="flow-item"><span>02</span><strong>验证概念</strong><small>Spark 多 Persona 探需</small></div>
+        <div class="flow-line"></div>
+        <div class="flow-item"><span>03</span><strong>评估体验</strong><small>Mirror 原型与产品预演</small></div>
+        <div class="flow-line"></div>
+        <div class="flow-item"><span>04</span><strong>持续优化</strong><small>报告、复测与迭代</small></div>
+      </section>
+    </main>
+
+    <div id="app" class="app-shell" hidden>
+      <aside class="sidebar">
+        <div class="sidebar-top">
+          <a class="brand brand-sidebar" href="#" data-nav="workspace">
+            <img class="brand-icon" src="./assets/personalab-logo-icon.png" alt="" />
+            <span class="brand-label">PersonaLab</span>
+          </a>
+          <span class="demo-badge">V1.0</span>
+        </div>
+
+        <nav class="main-nav" aria-label="主要导航">
+          <button class="nav-item active" data-nav="workspace">
+            <span class="nav-icon">⌂</span><span class="nav-label"><b>Workspace</b><small>我的工作台</small></span>
+          </button>
+          <button class="nav-item" data-nav="spark">
+            <span class="nav-icon nav-icon-spark">✦</span><span class="nav-label"><b>Spark</b><small>探需</small></span>
+          </button>
+          <button class="nav-item" data-nav="mirror">
+            <span class="nav-icon nav-icon-mirror">◫</span><span class="nav-label"><b>Mirror</b><small>预演</small></span>
+          </button>
+          <button class="nav-item" data-nav="personas">
+            <span class="nav-icon">◎</span><span class="nav-label"><b>Persona</b><small>用户库</small></span>
+          </button>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <div class="guest-card">
+            <span class="guest-avatar">访</span>
+            <div><strong>访客体验模式</strong><small>数据仅保存在本机</small></div>
+          </div>
+          <button class="text-button" data-action="reset-demo">重置演示数据</button>
+        </div>
+      </aside>
+
+      <button class="sidebar-backdrop" data-action="close-menu" aria-label="关闭导航"></button>
+
+      <div class="app-main">
+        <header class="topbar">
+          <button class="mobile-menu" data-action="toggle-menu" aria-label="打开导航">☰</button>
+          <div class="breadcrumb"><span>PersonaLab</span><b>/</b><strong id="page-title">我的工作台</strong></div>
+          <div class="topbar-actions">
+            <span class="local-state"><span class="status-dot"></span>已保存至浏览器</span>
+            <button class="icon-button theme-toggle" aria-label="切换深色模式" title="切换深色模式" data-action="toggle-theme">☾</button>
+            <button class="icon-button" aria-label="帮助" data-action="show-help">?</button>
+            <button class="avatar-button" aria-label="访客账号">访</button>
+          </div>
+        </header>
+
+        <div id="page-content" class="page-content" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <div id="modal-root"></div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

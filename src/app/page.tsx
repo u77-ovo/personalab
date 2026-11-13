@@ -1,34 +1,5 @@
-import Link from "next/link";
-import { ArrowRight, Check, FlaskConical, ScanSearch, Sparkles, Quote, ShieldCheck } from "lucide-react";
-
-const labs = [
-  { name: "SparkLab", label: "机会实验室", iconClass: "bg-(--spark-soft) text-(--spark)", icon: Sparkles, copy: "把模糊想法变成可检验的问题、六维评估与 MVP 蓝图。", items: ["澄清关键假设", "评估机会与可行性", "生成 MVP Blueprint"] },
-  { name: "MirrorLab", label: "用户镜像实验室", iconClass: "bg-(--mirror-soft) text-(--mirror)", icon: ScanSearch, copy: "用任务导向的 Persona 视角预检原型，发现值得真人验证的问题。", items: ["规划研究任务", "选择模拟视角", "形成待验证 Issue"] },
-  { name: "ProofLab", label: "证据实验室", iconClass: "bg-(--proof-soft) text-(--proof)", icon: Quote, copy: "把真实访谈原文连接到问题、行动和下一轮迭代。", items: ["保留原文与位置", "呈现支持与反驳", "生成行动与报告"] },
-] as const;
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return <main className="min-h-screen bg-[#f8f9fc]">
-    <header className="border-b border-(--line) bg-white/90"><div className="mx-auto flex h-18 max-w-7xl items-center justify-between px-5 lg:px-8">
-      <Link href="/" className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-(--primary) text-white shadow-[0_8px_22px_rgba(56,86,200,.22)]"><FlaskConical className="h-5 w-5" /></span><span><strong className="block text-lg tracking-[-.03em]">PersonaLab</strong><span className="block text-[9px] font-bold uppercase tracking-[.24em] text-[#7c879c]">From assumptions to evidence</span></span></Link>
-      <div className="flex items-center gap-2 sm:gap-3"><span className="hidden rounded-full bg-(--primary-soft) px-3 py-1.5 text-xs font-semibold text-(--primary) md:inline">本地 Demo · 不调用真实 AI</span><Link href="/login" className="inline-flex h-10 items-center px-3 text-sm font-semibold text-[#59657a] transition hover:text-(--navy)">登录</Link><Link href="/workspace" className="inline-flex h-10 items-center gap-2 rounded-xl bg-(--navy) px-4 text-sm font-semibold text-white transition hover:bg-[#253154]">进入工作台<ArrowRight className="h-4 w-4" /></Link></div>
-    </div></header>
-    <section className="mx-auto grid max-w-7xl gap-12 px-5 pb-20 pt-18 lg:grid-cols-[1.05fr_.95fr] lg:px-8 lg:pt-24">
-      <div><div className="inline-flex items-center gap-2 rounded-full border border-[#d8def2] bg-white px-3 py-2 text-xs font-semibold text-(--primary)"><ShieldCheck className="h-4 w-4" />AI 生成假设，真实证据决定行动</div>
-        <h1 className="mt-7 max-w-3xl text-5xl font-bold leading-[1.08] tracking-[-.055em] text-(--navy) sm:text-6xl">让每个产品决定，<br/><span className="text-(--primary)">都有证据可回溯。</span></h1>
-        <p className="mt-6 max-w-2xl text-lg leading-8 text-[#5d687d]">PersonaLab 把机会探索、原型预检与真人研究放进一条可信工作流。适合独立开发者、产品新人和资源有限的小团队。</p>
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row"><Link href="/workspace/spark" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-(--primary) px-6 text-sm font-semibold text-white shadow-[0_10px_28px_rgba(56,86,200,.24)] transition hover:-translate-y-0.5 hover:bg-(--primary-strong)">我只有一个想法<ArrowRight className="h-4 w-4" /></Link><Link href="/workspace/mirror" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-(--line) bg-white px-6 text-sm font-semibold transition hover:border-[#aeb8cf] hover:bg-[#fafbfe]">我已有产品或原型</Link></div>
-        <p className="mt-4 text-xs text-[#7d879a]">ProofLab 也可以独立导入已有研究资料，不要求先运行模拟 Persona。</p>
-      </div>
-      <div className="rounded-[28px] border border-[#dce2ed] bg-white p-5 shadow-[0_28px_80px_rgba(26,40,72,.12)] sm:p-7">
-        <div className="flex items-center justify-between"><div><p className="text-xs font-semibold text-[#7b8497]">当前研究</p><h2 className="mt-1 text-xl font-bold">无障碍路线助手 · Round 1</h2></div><span className="rounded-full bg-(--proof-soft) px-3 py-1.5 text-xs font-bold text-(--proof)">证据核对中</span></div>
-        <div className="mt-7 grid grid-cols-3 gap-3">{labs.map((lab, index)=><div key={lab.name} className="rounded-2xl bg-[#f5f7fb] p-4"><span className={`grid h-9 w-9 place-items-center rounded-xl ${lab.iconClass}`}><lab.icon className="h-4 w-4" /></span><div className="mt-4 text-xs font-bold text-[#59647a]">0{index+1}</div><div className="mt-1 text-sm font-bold">{lab.name}</div></div>)}</div>
-        <div className="mt-5 rounded-2xl border border-[#cfe9e2] bg-(--mirror-soft) p-4"><div className="flex items-center gap-2 text-xs font-bold text-(--mirror)"><Check className="h-4 w-4" />真实证据 E-03 · 已核对原文</div><p className="mt-3 text-sm font-semibold leading-6">“如果能先说明定位用途和保存时间，我会更放心。”</p><p className="mt-2 text-xs text-[#63766f]">参与者 P03 · 第 18 行 · 支持 Issue-02</p></div>
-        <div className="mt-3 rounded-2xl border border-[#e3d9f4] bg-[#f5f0fb] p-4"><div className="text-xs font-bold text-[#7054a8]">AI 推测 H-04 · 尚待验证</div><p className="mt-2 text-sm leading-6 text-[#5f5673]">首次体验的不确定感可能比步骤数量更影响完成意愿。</p></div>
-      </div>
-    </section>
-    <section className="border-y border-(--line) bg-white"><div className="mx-auto max-w-7xl px-5 py-20 lg:px-8"><div className="max-w-2xl"><h2 className="text-3xl font-bold tracking-[-.035em]">三个 Lab，一条产品研究闭环</h2><p className="mt-3 leading-7 text-[#657086]">可以从任何阶段开始，但系统始终保留来源、版本和验证状态。</p></div><div className="mt-10 grid gap-5 lg:grid-cols-3">{labs.map((lab)=><article key={lab.name} className="rounded-3xl border border-(--line) bg-[#fbfcfe] p-6 transition hover:-translate-y-1 hover:border-[#bdc7da]"><span className={`grid h-11 w-11 place-items-center rounded-xl ${lab.iconClass}`}><lab.icon className="h-5 w-5" /></span><h3 className="mt-5 text-xl font-bold">{lab.name}<span className="ml-2 text-sm font-medium text-[#7b8598]">{lab.label}</span></h3><p className="mt-3 min-h-14 text-sm leading-6 text-[#616c82]">{lab.copy}</p><ul className="mt-5 space-y-2.5">{lab.items.map(item=><li key={item} className="flex items-center gap-2 text-sm"><Check className="h-4 w-4 text-(--primary)" />{item}</li>)}</ul></article>)}</div></div></section>
-    <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8"><div className="rounded-[30px] bg-(--navy) px-6 py-12 text-white sm:px-12"><div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end"><div><h2 className="text-3xl font-bold tracking-[-.035em]">先跑通 Demo，再安全接入真实服务。</h2><p className="mt-4 max-w-2xl leading-7 text-[#c0c9db]">当前版本会把样例、AI 推测和真人证据明确分开。没有 API Key 时不会假装联网检索或真实 AI 已完成。</p></div><Link href="/workspace" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-white px-6 text-sm font-semibold text-(--navy)">打开 Demo 工作台<ArrowRight className="h-4 w-4" /></Link></div></div></section>
-    <footer className="border-t border-(--line) bg-white"><div className="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-7 text-xs text-[#7a8498] sm:flex-row sm:items-center sm:justify-between lg:px-8"><span>PersonaLab 2.0 · 本地 Demo</span><div className="flex flex-wrap items-center gap-3"><Link href="/data-and-privacy" className="font-semibold text-[#59657a] hover:text-(--primary)">数据与隐私</Link><span>模拟 Persona 不能替代真人研究 · 不用于医疗或心理诊断</span></div></div></footer>
-  </main>;
+  redirect("/demo/index.html");
 }

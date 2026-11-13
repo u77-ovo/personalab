@@ -13,13 +13,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PersonaLab · 从假设到证据",
-  description: "连接机会探索、体验预检与真实证据的 AI 产品研究工作台。",
+  title: "PersonaLab · AI 产品研究与验证工作台",
+  description: "连接用户资料、虚拟 Persona 与产品方案，帮助团队探索需求、评估体验并持续优化产品。",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="zh-CN" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="zh-CN" data-scroll-behavior="smooth" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full">{children}</body>
     </html>
   );

@@ -1,53 +1,33 @@
-# PersonaLab 2.0
+# PersonaLab
 
-PersonaLab 是一个中文优先的 AI 产品研究工作台：
+PersonaLab 是连接用户资料、虚拟 Persona 与产品方案的 AI 产品研究与验证工作台，帮助团队探索需求、评估体验并持续优化产品。它既适合从模糊想法开始，也支持已有原型或完整产品的持续研究。当前仓库的默认入口已经重构为最新 Demo，不再使用旧版 `SparkLab → MirrorLab → ProofLab` 页面流程。
 
-- **SparkLab**：Idea → 六维机会评估 → MVP Blueprint
-- **MirrorLab**：Project → Research Task → Persona 视角 → 待验证 Issue
-- **ProofLab**：匿名真实资料 → 可回溯 Evidence → Action → Markdown Report
+## 当前 Demo
 
-当前仓库提供可运行的 **Local Demo**，并已加入 Real 模式的安全接入底座。Demo 使用浏览器 LocalStorage 和可重现 Fixture，不会假装执行真实 AI、联网检索、真人研究或云端保存；Real 模式在配置不完整时会拒绝启动受保护工作区。
+- 访客无需注册即可体验完整流程，数据保存在浏览器本地
+- Workspace：项目、Persona、需求资料、验证轮次和报告总览
+- Spark 播种：围绕用户方向进行多 Persona 内部讨论，输出需求、分歧、风险和产品概念，并保留资料片段与推断之间的来源关系
+- Mirror 预演：接收截图、链接、流程、文档或视频等材料，输出任务路径、问题优先级与固定八维体系；证据不足的维度明确显示“暂不评分”
+- Persona 用户库：平台预设类型与用户自定义形象
+- 真实需求资料库：保存访谈、问卷、评价、行业与竞品资料，并保留来源类型
+- 验证报告：保存 Spark / Mirror 结果并导出 Markdown
+- 结果恢复：刷新页面后可继续最近项目，并从报告中心重新打开历史结果
 
-## Windows 本地启动
+Demo 位于 `public/demo/`，根路径会自动跳转到 `/demo/index.html`。
 
-```powershell
-cd D:\PersonaLab\personalab
+## 本地运行
+
+```bash
 npm install
 npm run dev
 ```
 
-浏览器打开 <http://localhost:3000>。
+访问 `http://localhost:3000`。
 
-## 质量检查
+也可以直接打开 `public/demo/index.html`，或在该目录启动任意静态服务器。
 
-```powershell
-npm run lint
-npm run typecheck
-npm run test
-npm run build
-```
+## 演示边界
 
-## Demo 与 Real 的区别
+当前前端 Demo 不调用真实 AI、不联网搜索，也不会上传用户选择的文件。Spark 与 Mirror 结果均为固定逻辑生成的示例仿真，并在界面中明确标注。仓库内原有 API、Supabase、服务端密钥与额度控制等底层代码暂时保留，供后续正式接入使用。
 
-| 能力 | Demo | Real（待接入） |
-| --- | --- | --- |
-| 数据 | 浏览器 LocalStorage | Supabase PostgreSQL + RLS |
-| 图片 | 小图可本地预览 | 私有 Storage + 签名 URL |
-| 分析 | 固定 Fixture | OpenAI Responses API 结构化输出 |
-| 外部检索 | 明确未执行 | Web Search + 来源与检索日期 |
-| 登录权限 | 无需登录 | Supabase Auth + Next.js Proxy 会话校验（底座已实现） |
-
-复制 `.env.example` 为 `.env.local` 后再填写本机密钥。不要把任何密钥粘贴到聊天或提交到 Git。
-
-## 目录
-
-- `src/app`：页面与 Route Handlers
-- `src/components`：通用 UI 与工作台布局
-- `src/features`：跨页面状态与领域功能
-- `src/lib`：数据类型、Demo Fixture、评分、证据校验与 Supabase SSR 客户端
-- `src/server`：服务端环境配置校验；不会向浏览器返回密钥
-- `supabase/migrations`：数据库结构与逐表 RLS / 私有 Storage 迁移（尚未应用远端）
-- `supabase/tests`：需要本地 Supabase + Docker 才能运行的权限隔离测试
-- `docs`：路线、决策与测试证据
-
-详细状态见 [docs/ROADMAP.md](docs/ROADMAP.md)、[docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) 与 [docs/TEST_EVIDENCE.md](docs/TEST_EVIDENCE.md)。
+真实研究资料在权限、存储策略与双账号隔离验证完成前不得上传。AI 推断必须继续标记为待验证假设，不能冒充真实用户结论。

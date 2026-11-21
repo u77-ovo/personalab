@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "public/demo/**"
+      - "public/demo-student/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -28,11 +29,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Prepare standalone site
+      - name: Prepare main and student sites
         run: |
-          mkdir -p _site
+          mkdir -p _site/student
           cp -a public/demo/. _site/
-          rm -f _site/README.md
+          cp -a public/demo-student/. _site/student/
+          rm -f _site/README.md _site/student/README.md
           touch _site/.nojekyll
 
       - name: Configure GitHub Pages
@@ -46,3 +48,4 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+

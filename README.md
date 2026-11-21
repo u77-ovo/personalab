@@ -6,6 +6,8 @@
 
 ## 学生版入口
 
+**在线体验：<https://u77-ovo.github.io/personalab/student/>**
+
 静态原型位于 [`public/demo-student/`](public/demo-student/)。下载或克隆本分支后，直接打开 `public/demo-student/index.html` 即可体验。
 
 ```bash
@@ -35,5 +37,5 @@ cd personalab/public/demo-student
 - `personalab-student`：本学生科创竞赛版；
 - 学生版存储键：`personalab.student.v2`。
 
-本分支不会覆盖 `main` 的 GitHub Pages 部署。
+Pages 部署会保留主站根路径，并将本学生版发布到 `/personalab/student/`。
 

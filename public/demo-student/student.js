@@ -1,8 +1,15 @@
 const studentFields = [
-  { key: "audience", label: "目标用户与校园场景", placeholder: "哪类同学在什么时刻会遇到这个问题？" },
-  { key: "problem", label: "核心痛点与现有做法", placeholder: "他们现在怎么处理？哪一步最费时、最容易出错？" },
-  { key: "innovation", label: "方案与关键差异", placeholder: "和现有做法相比，你具体改善了哪一步？" },
-  { key: "aiRole", label: "AI 的输入、输出与人工确认", placeholder: "AI 读取什么、生成什么、由谁核对和决定？" },
+  { key: "background", label: "项目背景", placeholder: "什么观察、事件或需求让团队决定开始这个项目？" },
+  { key: "goal", label: "项目目标", placeholder: "团队希望为谁带来什么具体改善？" },
+  { key: "audience", label: "目标用户", placeholder: "谁最需要这个方案？描述他们的任务、特征和限制。" },
+  { key: "scenario", label: "典型使用场景", placeholder: "在什么时间、地点或条件下，这类用户要完成什么任务？" },
+  { key: "problem", label: "核心痛点", placeholder: "哪一步最容易卡住？它具体造成了什么影响？" },
+  { key: "currentApproach", label: "现有解决方式", placeholder: "用户现在怎么处理？什么有效，什么仍然解决不了？" },
+  { key: "solution", label: "产品方案", placeholder: "从用户输入到得到结果，写清方案如何解决核心痛点。" },
+  { key: "coreFeatures", label: "核心功能", placeholder: "列出首版必须做的功能，每行一个，并写明它解决的问题。" },
+  { key: "innovation", label: "创新亮点", placeholder: "和现有做法相比，你具体改善了哪一步？" },
+  { key: "feasibility", label: "技术可行性", placeholder: "现有资源、技术依赖和主要风险是什么？第一版怎样验证可行？" },
+  { key: "aiRole", label: "AI 的输入、输出与人工确认", placeholder: "若使用 AI，说明它读取什么、生成什么，以及谁确认。", optional: true },
   { key: "hypothesis", label: "核心验证假设", placeholder: "如果为哪类用户提供什么能力，那么什么可观察行为会发生变化？" },
   { key: "successMetric", label: "成功标准", placeholder: "用什么指标判断方案有效？例如完成时间、错误数、理解度。" },
   { key: "testTask", label: "统一测试任务", placeholder: "所有参与者完成同一个什么任务？给出相同材料、起点和完成条件。" },
@@ -11,10 +18,28 @@ const studentFields = [
   { key: "iterationPlan", label: "由证据触发的下一轮改动", placeholder: "哪条观察促使你改什么？保留、不改或继续验证的理由是什么？" }
 ];
 
+const blueprintSteps = [
+  { id: "goals", title: "项目目标与背景", fields: ["background", "goal"], tip: "把目标写成用户能感受到的变化，例如让用户更快完成临时任务重排。" },
+  { id: "audience", title: "目标用户与使用场景", fields: ["audience", "scenario"], tip: "选一个最常出现的场景，例如当天计划已排满，却又收到一项两小时后截止的任务。" },
+  { id: "problem", title: "核心痛点与现有做法", fields: ["problem", "currentApproach"], tip: "指出用户卡在哪一步，并关联一条能追溯的访谈、观察或问卷摘录。" },
+  { id: "solution", title: "产品方案与核心功能", fields: ["solution", "coreFeatures"], tip: "先写能完成一次核心任务的功能，再列要延后的功能。" },
+  { id: "feasibility", title: "创新亮点与技术可行性", fields: ["innovation", "feasibility", "aiRole"], tip: "用一个对照说明差异，再写出首版所需的数据、工具和团队能力。" },
+  { id: "validation", title: "验证假设与成功指标", fields: ["hypothesis", "successMetric"], tip: "先约定比较对象、可观察指标和目标值，再开始测试。" }
+];
+
+const validationFieldKeys = ["hypothesis", "successMetric", "testTask", "testPlan", "testResult", "iterationPlan"];
+
 const studentSample = {
-  audience: "学生在课程或作业临时变化后，需要重新安排当天的课程、作业和小组任务。",
-  problem: "学生通常在课程表和待办清单之间手动调整，遇到任务冲突时需要逐项判断优先级，也难以看清调整理由。",
-  innovation: "系统先解释时间冲突和任务依赖，再给出可修改的调整草案，让学生逐条接受、修改或撤回。",
+  background: "演练设定中，临时课程或作业变更会打乱原本排好的当天计划。",
+  goal: "让用户更快完成当天任务重排，减少遗漏，并能解释调整理由。",
+  audience: "通过课表和待办清单管理学习任务的学生。",
+  scenario: "当天日程已排满时，收到一项两小时后截止的新作业，必须重新安排课程、作业和小组任务。",
+  problem: "多项任务冲突时，用户需要逐项判断优先级，容易漏掉原来的待办。",
+  currentApproach: "在课程表和待办清单之间切换，手动找冲突、改时间和检查遗漏。",
+  solution: "收集用户确认的任务与时间变更，解释冲突并给出可编辑的重排草案，由用户确认。",
+  coreFeatures: "冲突提示：说明哪些任务重叠。\n调整草案：建议可更改的安排。\n确认与撤回：避免直接覆盖用户的计划。",
+  innovation: "先解释冲突与依赖，再提供草案，用户能逐条接受、修改或撤回。",
+  feasibility: "用虚构任务和已知截止时间做首版，先以规则检测重叠，用同一组任务验证走查流程。",
   aiRole: "智能体读取学生主动确认的任务清单和临时变更，生成备选顺序并解释依据，最终安排由学生确认。",
   hypothesis: "若先展示冲突原因再给出可修改的重排草案，学生会更快完成重排，并减少任务遗漏。",
   successMetric: "与手动重排相比，任务遗漏更少、完成时间更短，且用户能够复述调整理由。",
@@ -37,28 +62,36 @@ const personaPainPrompts = {
 
 let studentActiveView = "overview";
 
-function getStudentProject() {
+function getStudentProject(source = state) {
   return {
-    ...(state.isSample ? studentSample : {}),
-    ...(state.studentProject || {}),
-    focusPersonas: state.studentProject?.focusPersonas || (state.isSample ? studentSample.focusPersonas : [])
+    ...(source.isSample ? studentSample : {}),
+    ...(source.studentProject || {}),
+    focusPersonas: source.studentProject?.focusPersonas || (source.isSample ? studentSample.focusPersonas : [])
   };
 }
 
-function hasOwnEvidence() {
-  return state.materials.some(item => !item.isSample && item.content?.trim() && item.content !== "未填写内容摘要");
+function hasOwnEvidence(source) {
+  return source.materials.some(item => !item.isSample && item.content?.trim() && item.content !== "未填写内容摘要");
 }
 
-function getReadiness(project = getStudentProject()) {
+function hasStudentFields(project, ...keys) {
+  return keys.every(key => typeof project[key] === "string" && project[key].trim());
+}
+
+function hasSolutionDetails(project) {
+  return hasStudentFields(project, "innovation") && ["solution", "aiRole"].some(key => hasStudentFields(project, key));
+}
+
+function getReadiness(project = getStudentProject(), source = state) {
   const milestones = [
-    { id: "problem", label: "问题定义", short: "说明用户、场景和现有做法", done: Boolean(project.audience && project.problem), action: "canvas" },
-    { id: "evidence", label: "需求证据", short: "关联至少一条脱敏真实资料", done: hasOwnEvidence(), action: "materials" },
-    { id: "solution", label: "方案边界", short: "写清差异和 AI 的人工确认", done: Boolean(project.innovation && project.aiRole), action: "canvas" },
+    { id: "problem", label: "问题定义", short: "说明用户、场景和现有做法", done: hasStudentFields(project, "audience", "problem"), action: "canvas" },
+    { id: "evidence", label: "需求证据", short: "关联至少一条脱敏真实资料", done: hasOwnEvidence(source), action: "materials" },
+    { id: "solution", label: "方案边界", short: "写清产品方案和它与现有做法的差异", done: hasSolutionDetails(project), action: "canvas" },
     { id: "persona", label: "人群视角", short: "选择至少三类重点 Persona", done: project.focusPersonas.length >= 3, action: "personas" },
-    { id: "spark", label: "需求探索", short: "完成一轮 Spark 假设梳理", done: state.sparkRuns.length > 0, action: "spark" },
-    { id: "mirror", label: "原型预演", short: "完成一轮 Mirror 任务走查", done: state.mirrorRuns.length > 0, action: "mirror" },
-    { id: "plan", label: "真人测试", short: "确定假设、统一任务、样本和成功指标", done: Boolean(project.hypothesis && project.testTask && project.testPlan && project.successMetric), action: "validation" },
-    { id: "result", label: "验证闭环", short: "录入真实观察与证据触发的改动", done: Boolean(project.testResult && project.iterationPlan), action: "validation" }
+    { id: "spark", label: "需求探索", short: "完成一轮 Spark 假设梳理", done: source.sparkRuns.length > 0, action: "spark" },
+    { id: "mirror", label: "原型预演", short: "完成一轮 Mirror 任务走查", done: source.mirrorRuns.length > 0, action: "mirror" },
+    { id: "plan", label: "真人测试", short: "确定假设、统一任务、样本和成功指标", done: hasStudentFields(project, "hypothesis", "testTask", "testPlan", "successMetric"), action: "validation" },
+    { id: "result", label: "验证闭环", short: "录入真实观察与证据触发的改动", done: hasStudentFields(project, "testResult", "iterationPlan"), action: "validation" }
   ];
   const done = milestones.filter(item => item.done).length;
   return { milestones, done, score: Math.round(done / milestones.length * 100), next: milestones.find(item => !item.done) };
@@ -69,20 +102,20 @@ function getStudentReview(project = getStudentProject()) {
   const linkedOwnEvidence = linkedMaterial && !linkedMaterial.isSample && linkedMaterial.content?.trim() && linkedMaterial.content !== "未填写内容摘要";
   return [
     {
-      title: "问题是否来自真实校园情境？",
-      ready: Boolean(project.audience && project.problem && linkedOwnEvidence),
-      detail: !project.audience || !project.problem
+      title: "问题是否来自真实使用情境？",
+      ready: hasStudentFields(project, "audience", "problem") && Boolean(linkedOwnEvidence),
+      detail: !hasStudentFields(project, "audience", "problem")
         ? "补全目标用户、触发情境和当前替代做法。"
         : linkedOwnEvidence
           ? "已关联用户录入资料。提交前请回看原文并确认脱敏。"
           : "关联一条脱敏访谈、观察或公开资料。示例资料只演示流程。"
     },
     {
-      title: "方案和 AI 的作用是否具体？",
-      ready: Boolean(project.innovation && project.aiRole),
-      detail: project.innovation && project.aiRole
-        ? "已说明方案差异和人工确认。演示时使用同一任务对比现有做法。"
-        : "写明改善的关键步骤，以及 AI 的输入、输出和最终决策者。"
+      title: "方案的关键改动是否具体？",
+      ready: hasSolutionDetails(project),
+      detail: hasSolutionDetails(project)
+        ? "已说明方案差异。演示时可以用同一任务对比现有做法。"
+        : "写明方案如何改善关键步骤，以及它与现有做法的差异。"
     },
     {
       title: "是否覆盖不同人群的关键顾虑？",
@@ -93,7 +126,7 @@ function getStudentReview(project = getStudentProject()) {
     },
     {
       title: "是否形成真实验证闭环？",
-      ready: Boolean(project.testPlan && project.successMetric && project.testTask && project.testResult && project.iterationPlan),
+      ready: hasStudentFields(project, "testPlan", "successMetric", "testTask", "testResult", "iterationPlan"),
       detail: project.testResult && project.iterationPlan
         ? "已记录测试结果和证据触发的改动。请保留失败案例与原始记录。"
         : "先写统一任务和成功指标，再邀请真实目标用户完成并记录观察与改动。"
@@ -148,7 +181,7 @@ function renderStudent() {
       <div>
         <p class="eyebrow">PERSONALAB V2.0-STUDENT · COMPETITION WORKBENCH</p>
         <h1>${escapeHTML(state.project.name)} · 赛前验证驾驶舱</h1>
-        <p>把校园痛点、需求依据、多类 Persona、原型预演和真人测试连成一条可说明的证据链。</p>
+        <p>梳理项目痛点、需求依据和不同人群的意见，再通过原型预演与真人测试验证方案。</p>
       </div>
       <div class="heading-actions">
         <button class="button button-secondary" type="button" data-export-student>导出打磨记录</button>
@@ -201,8 +234,8 @@ function renderOverviewView(project, readiness) {
     </div>
     <div class="student-main-grid">
       <article class="card card-pad project-snapshot-card">
-        <div class="student-card-head"><div><span class="student-card-kicker">PROJECT SNAPSHOT</span><h2>一句话说清你的项目</h2></div><button class="link-button" type="button" data-student-view="canvas">编辑立项画布 →</button></div>
-        <div class="snapshot-block"><small>目标用户与场景</small><p>${escapeHTML(project.audience || "待补充目标用户和触发情境")}</p></div>
+        <div class="student-card-head"><div><span class="student-card-kicker">PROJECT SNAPSHOT</span><h2>项目摘要</h2></div><button class="link-button" type="button" data-student-view="canvas">编辑项目蓝图 →</button></div>
+        <div class="snapshot-block"><small>目标用户与场景</small><p>${escapeHTML([project.audience, project.scenario].filter(Boolean).join("\n") || "待补充目标用户和触发情境")}</p></div>
         <div class="snapshot-block"><small>核心痛点</small><p>${escapeHTML(project.problem || "待补充当前做法和最关键的障碍")}</p></div>
         <div class="snapshot-block highlight"><small>方案差异</small><p>${escapeHTML(project.innovation || "待说明与现有方案相比具体改善了哪一步")}</p></div>
       </article>
@@ -217,33 +250,70 @@ function renderOverviewView(project, readiness) {
     </article>`;
 }
 
+function blueprintStepStatus(step, project) {
+  const expected = step.fields.filter(key => !studentFields.find(field => field.key === key).optional);
+  if (hasStudentFields(project, ...expected)) return "已填写";
+  return step.fields.some(key => hasStudentFields(project, key)) ? "填写中" : "待填写";
+}
+
+function renderBlueprintEvidence(project) {
+  const materials = state.materials.map(item => {
+    const label = item.isSample ? `${item.title}（示例）` : item.title;
+    return `<option value="${escapeHTML(item.id)}"${item.id === project.materialId ? " selected" : ""}>${escapeHTML(label)}</option>`;
+  }).join("");
+  return `<div class="form-group">
+    <label class="form-label" for="student-material">核心需求来源 <small>选填</small></label>
+    <select class="select" id="student-material" name="materialId"><option value="">尚未关联</option>${materials}</select>
+    <button class="link-button blueprint-add-evidence" type="button" data-open-modal="material">＋ 添加脱敏资料</button>
+  </div>`;
+}
+
 function renderCanvasView(project) {
-  const materials = state.materials.map(item => `<option value="${escapeHTML(item.id)}"${item.id === project.materialId ? " selected" : ""}>${escapeHTML(item.title)} · ${escapeHTML(item.source)}</option>`).join("");
-  const review = getStudentReview(project);
+  const statuses = blueprintSteps.map(step => blueprintStepStatus(step, project));
+  const complete = statuses.filter(status => status === "已填写").length;
+  const savedIndex = blueprintSteps.findIndex(step => step.id === state.blueprintStep);
+  const currentIndex = savedIndex >= 0 ? savedIndex : Math.max(0, statuses.findIndex(status => status !== "已填写"));
+  const step = blueprintSteps[currentIndex];
+  const previous = blueprintSteps[currentIndex - 1];
+  const next = blueprintSteps[currentIndex + 1];
+
   return `
-    <div class="student-canvas-layout">
-      <article class="card card-pad canvas-form-card">
-        <div class="student-card-head"><div><span class="student-card-kicker">PROJECT BLUEPRINT</span><h2>科创项目蓝图</h2><p>先写事实和当前判断，后续再用资料、原型预演与真人测试逐项核对。</p></div><button class="link-button" type="button" data-open-modal="project">编辑项目名称</button></div>
-        <form id="student-form" class="student-form-grid">
-          <div class="canvas-section-title"><span>01</span><div><strong>问题与人群</strong><small>说明问题发生在谁身上、何时发生</small></div></div>
-          ${studentFields.slice(0, 2).map(field => renderStudentField(field, project)).join("")}
-          <div class="form-group student-form-wide"><label class="form-label" for="student-material">关联一条核心需求来源</label><select class="select" id="student-material" name="materialId"><option value="">尚未关联</option>${materials}</select><div class="inline-form-actions"><small>只关联能直接支持核心问题的资料</small><button class="link-button" type="button" data-open-modal="material">＋ 添加脱敏资料</button></div></div>
-          <div class="canvas-section-title"><span>02</span><div><strong>方案与 AI 边界</strong><small>说明改善点、智能体作用和人工确认</small></div></div>
-          ${studentFields.slice(2, 4).map(field => renderStudentField(field, project)).join("")}
-          <div class="canvas-section-title"><span>03</span><div><strong>验证设计</strong><small>先定义成功，再开展真实任务测试</small></div></div>
-          ${studentFields.slice(4).map(field => renderStudentField(field, project)).join("")}
-          <div class="student-form-wide canvas-save-row"><span>内容自动保存在当前浏览器</span><button class="button button-primary" type="submit">保存并更新自查</button></div>
+    <div class="blueprint-layout">
+      <aside class="card blueprint-nav">
+        <h2>科创项目蓝图</h2>
+        <label for="blueprint-progress" id="blueprint-progress-label">${complete} / ${blueprintSteps.length} 步已填写</label>
+        <progress id="blueprint-progress" value="${complete}" max="${blueprintSteps.length}"></progress>
+        <nav class="blueprint-steps" aria-label="项目蓝图步骤">
+          ${blueprintSteps.map((item, index) => `<button type="button" class="blueprint-step" data-blueprint-step="${item.id}" ${item === step ? 'aria-current="step"' : ""}>
+            <span class="blueprint-step-number" aria-hidden="true">${index + 1}</span>
+            <span class="blueprint-step-label"><strong>${item.title}</strong><small data-blueprint-step-status="${statuses[index]}">${statuses[index]}</small></span>
+          </button>`).join("")}
+        </nav>
+      </aside>
+      <article class="card blueprint-editor" aria-labelledby="blueprint-step-title">
+        <header class="blueprint-editor-head">
+          <div><span>第 ${currentIndex + 1} 步 / 共 ${blueprintSteps.length} 步</span><h3 id="blueprint-step-title" tabindex="-1">${step.title}</h3></div>
+          <p id="blueprint-save-status" role="status">自动保存到当前浏览器</p>
+        </header>
+        <p class="blueprint-tip">${step.tip}</p>
+        <form id="student-form">
+          ${step.fields.map(key => renderStudentField(studentFields.find(field => field.key === key), project)).join("")}
+          ${step.id === "problem" ? renderBlueprintEvidence(project) : ""}
+          <div class="blueprint-footer">
+            ${previous ? `<button class="button button-secondary" type="button" data-blueprint-step="${previous.id}">上一步</button>` : ""}
+            <span>暂时不确定的字段可以留空</span>
+            ${next
+              ? `<button class="button button-primary" type="button" data-blueprint-step="${next.id}">下一步 →</button>`
+              : `<button class="button button-primary" type="button" data-student-view="validation">进入验证冲刺 →</button>`}
+          </div>
         </form>
       </article>
-      <aside class="canvas-side-stack">
-        <article class="card card-pad sticky-review-card"><div class="student-card-head"><div><span class="student-card-kicker">LIVE REVIEW</span><h2>实时自查</h2></div></div><div class="compact-review-list">${review.map(item => `<div class="compact-review-item"><span class="review-dot ${item.ready ? "ready" : ""}">${item.ready ? "✓" : "!"}</span><div><strong>${item.title}</strong><p>${item.detail}</p></div></div>`).join("")}</div></article>
-        <article class="card card-pad"><span class="tag tag-orange">写作提示</span><h3 class="side-tip-title">避免空泛表达</h3><p class="side-tip-copy">把“学生需要高效学习”改成“临时新增作业后，学生需要在 10 分钟内完成任务重排，并看懂每项调整的理由”。</p></article>
-      </aside>
     </div>`;
 }
 
 function renderStudentField(field, project) {
-  return `<div class="form-group student-form-wide"><label class="form-label" for="student-${field.key}">${field.label}${field.key === "testResult" ? " <small>真实测试后填写</small>" : ""}</label><textarea class="textarea" id="student-${field.key}" name="${field.key}" rows="3" maxlength="1600" placeholder="${field.placeholder}">${escapeHTML(project[field.key] || "")}</textarea></div>`;
+  const hint = field.key === "testResult" ? "真实测试后填写" : field.optional ? "选填" : "";
+  return `<div class="form-group student-form-wide"><label class="form-label" for="student-${field.key}">${field.label}${hint ? ` <small>${hint}</small>` : ""}</label><textarea class="textarea" id="student-${field.key}" name="${field.key}" rows="3" maxlength="1600" placeholder="${field.placeholder}">${escapeHTML(project[field.key] || "")}</textarea></div>`;
 }
 
 function renderPersonaView(project) {
@@ -259,7 +329,7 @@ function renderPersonaView(project) {
 }
 
 function renderValidationView(project) {
-  const validationFields = studentFields.filter(field => ["hypothesis", "successMetric", "testTask", "testPlan", "testResult", "iterationPlan"].includes(field.key));
+  const validationFields = studentFields.filter(field => validationFieldKeys.includes(field.key));
   const hasPlan = Boolean(project.hypothesis && project.successMetric && project.testTask && project.testPlan);
   const hasResult = Boolean(project.testResult);
   const hasIteration = Boolean(project.iterationPlan);
@@ -325,24 +395,87 @@ function renderDeliveryView(project) {
     </div>`;
 }
 
-function storeStudentProject(form) {
+function storeStudentProject(form, { trim = true, retry = false } = {}) {
   const data = new FormData(form);
   const current = getStudentProject();
   const updates = {};
   [...studentFields.map(field => field.key), "materialId"].forEach(key => {
-    if (data.has(key)) updates[key] = String(data.get(key) || "").trim();
+    if (!data.has(key)) return;
+    const value = String(data.get(key) || "");
+    updates[key] = trim ? value.trim() : value;
   });
+  if (!retry && Object.entries(updates).every(([key, value]) => (current[key] || "") === value)) return false;
   state.studentProject = {
     ...current,
     ...updates
   };
   saveState();
+  return true;
 }
 
 function saveStudentProject(form) {
   storeStudentProject(form);
   renderPage();
-  showToast("立项画布已保存，自查和进度已更新");
+  showToast("验证冲刺已保存");
+}
+
+function saveBlueprint(form) {
+  const status = document.querySelector("#blueprint-save-status");
+  try {
+    const changed = storeStudentProject(form, { trim: false, retry: form.dataset.saveFailed === "true" });
+    if (!changed) return true;
+    delete form.dataset.saveFailed;
+    status.textContent = "已保存到当前浏览器";
+    status.classList.remove("save-error");
+    updateBlueprintProgress();
+    return true;
+  } catch {
+    form.dataset.saveFailed = "true";
+    status.textContent = "本地保存失败。请先复制已填内容，保留此页面。";
+    status.classList.add("save-error");
+    return false;
+  }
+}
+
+function updateBlueprintProgress() {
+  const project = getStudentProject();
+  let complete = 0;
+  for (const step of blueprintSteps) {
+    const status = blueprintStepStatus(step, project);
+    const label = document.querySelector(`.blueprint-steps [data-blueprint-step="${step.id}"] [data-blueprint-step-status]`);
+    if (label.textContent !== status) {
+      label.textContent = status;
+      label.dataset.blueprintStepStatus = status;
+    }
+    if (status === "已填写") complete++;
+  }
+  const progress = document.querySelector("#blueprint-progress");
+  if (progress.value !== complete) {
+    progress.value = complete;
+    document.querySelector("#blueprint-progress-label").textContent = `${complete} / ${blueprintSteps.length} 步已填写`;
+  }
+}
+
+function bindBlueprint() {
+  const form = document.querySelector("#student-form");
+  if (!form) return;
+  form.addEventListener("input", () => saveBlueprint(form));
+  form.addEventListener("change", () => saveBlueprint(form));
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    saveBlueprint(form);
+  });
+  document.querySelectorAll("[data-blueprint-step]").forEach(button => button.addEventListener("click", () => {
+    if (button.getAttribute("aria-current") === "step" || !saveBlueprint(form)) return;
+    state.blueprintStep = button.dataset.blueprintStep;
+    try {
+      saveState();
+    } catch {
+      showToast("本地存储未能记录上次打开的步骤");
+    }
+    renderPage();
+    document.querySelector("#blueprint-step-title")?.focus();
+  }));
 }
 
 function toggleFocusPersona(personaId) {
@@ -364,12 +497,17 @@ function handleReadinessAction(action) {
 }
 
 function bindStudentPage() {
+  bindBlueprint();
   const validationForm = document.querySelector("#student-validation-form");
   validationForm?.addEventListener("change", event => storeStudentProject(event.currentTarget));
   validationForm?.addEventListener("submit", event => { event.preventDefault(); saveStudentProject(event.currentTarget); });
   document.querySelectorAll("[data-student-view]").forEach(button => button.addEventListener("click", () => {
+    const blueprint = document.querySelector("#student-form");
+    if (blueprint && !saveBlueprint(blueprint)) return;
+    const fromBlueprintFooter = button.closest(".blueprint-footer");
     studentActiveView = button.dataset.studentView;
     renderPage();
+    if (fromBlueprintFooter) document.querySelector("#student-hypothesis")?.focus();
   }));
   document.querySelectorAll("[data-readiness-action]").forEach(button => button.addEventListener("click", () => handleReadinessAction(button.dataset.readinessAction)));
   document.querySelectorAll("[data-toggle-persona]").forEach(button => button.addEventListener("click", () => toggleFocusPersona(button.dataset.togglePersona)));
@@ -382,7 +520,7 @@ function bindStudentPage() {
 
 function exportStudentProject() {
   const form = document.querySelector("#student-form");
-  if (form) storeStudentProject(form);
+  if (form) saveBlueprint(form);
   const project = getStudentProject();
   const readiness = getReadiness(project);
   const linkedMaterial = state.materials.find(item => item.id === project.materialId);
@@ -390,7 +528,12 @@ function exportStudentProject() {
   const materialRecord = linkedMaterial
     ? `- 标题：${linkedMaterial.title}\n- 来源：${linkedMaterial.source}\n- 资料 ID：${linkedMaterial.id}\n\n> ${linkedMaterial.content}\n\n${linkedMaterial.isSample ? "这条记录是内置演练资料。" : "以上为用户录入资料，提交前需回看原始来源并确认脱敏。"}`
     : "尚未关联核心需求来源。";
-  const fields = studentFields.map(({ key, label }) => `### ${label}\n\n${project[key] || "待填写"}`).join("\n\n");
+  const fieldSummary = (key, level) => {
+    const field = studentFields.find(item => item.key === key);
+    return `${"#".repeat(level)} ${field.label}\n\n${project[key]?.trim() || (field.optional ? "未填写（选填）" : "待填写")}`;
+  };
+  const fields = blueprintSteps.map(step => `### ${step.title}\n\n${step.fields.map(key => fieldSummary(key, 4)).join("\n\n")}`).join("\n\n");
+  const validation = validationFieldKeys.slice(2).map(key => fieldSummary(key, 3)).join("\n\n");
   const milestones = readiness.milestones.map(item => `- ${item.done ? "已完成" : "待完成"} · ${item.label}：${item.short}`).join("\n");
   const personaRows = selectedPersonas.length ? selectedPersonas.map(item => {
     const prompt = personaPainPrompts[item.id] || { concern: item.desc, observe: "设计一个真实任务进行观察" };
@@ -408,9 +551,13 @@ function exportStudentProject() {
 
 ${milestones}
 
-## 立项画布
+## 项目蓝图
 
 ${fields}
+
+## 真人验证计划、结果与迭代
+
+${validation}
 
 ## 核心需求来源
 
@@ -439,9 +586,8 @@ ${reports}
 
 window.studentWorkbench = {
   render: renderStudent,
-  store: storeStudentProject,
-  save: saveStudentProject,
   export: exportStudentProject,
   bind: bindStudentPage,
-  readiness: getReadiness
+  readiness: getReadiness,
+  readinessFor: source => getReadiness(getStudentProject(source), source)
 };

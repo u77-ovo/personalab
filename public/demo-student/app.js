@@ -230,16 +230,17 @@ function showToast(message) {
   showToast.timer = setTimeout(() => toast.classList.remove("show"), 2200);
 }
 
+function showWorkspace() {
+  document.querySelector("#landing").hidden = true;
+  document.querySelector("#app").hidden = false;
+}
+
 function enterDemo(mode = "resume", destination) {
   if (mode === "sample") {
     state = sampleState();
     currentSparkResult = null;
     currentMirrorResult = null;
     saveState();
-  } else if (mode === "blank") {
-    state = initialState();
-    currentSparkResult = null;
-    currentMirrorResult = null;
   } else {
     if (!hasSavedProject(state) || state.project.archived) {
       state = normalizeStoredState(projectLibrary.find(item => !item.project.archived) || initialState());
@@ -247,28 +248,42 @@ function enterDemo(mode = "resume", destination) {
     currentSparkResult = state.sparkRuns[0] || null;
     currentMirrorResult = state.mirrorRuns[0] || null;
   }
-  document.querySelector("#landing").hidden = true;
-  document.querySelector("#app").hidden = false;
+  showWorkspace();
   navigate(destination || state.activePage || "workspace");
-  if (mode === "blank") setTimeout(() => openProjectWizard(), 0);
+}
+
+function setMenuOpen(open, restoreFocus = false) {
+  const sidebar = document.querySelector(".student-sidebar");
+  const toggle = document.querySelector(".mobile-menu");
+  sidebar.classList.toggle("open", open);
+  toggle.setAttribute("aria-expanded", String(open));
+  if (open) sidebar.querySelector(".nav-item.active")?.focus();
+  if (restoreFocus) toggle.focus();
 }
 
 function showLanding() {
   document.querySelector("#app").hidden = true;
   document.querySelector("#landing").hidden = false;
-  document.querySelector(".sidebar")?.classList.remove("open");
+  setMenuOpen(false);
   syncResumeButton();
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  window.scrollTo({ top: 0 });
 }
 
 function navigate(page) {
   state.activePage = page;
   saveState();
-  document.querySelectorAll("[data-nav]").forEach(item => item.classList.toggle("active", item.dataset.nav === page && item.classList.contains("nav-item")));
+  document.querySelectorAll(".nav-item[data-nav]").forEach(item => {
+    const active = item.dataset.nav === page;
+    item.classList.toggle("active", active);
+    if (active) item.setAttribute("aria-current", "page");
+    else item.removeAttribute("aria-current");
+  });
   document.querySelector("#page-title").textContent = pageTitles[page];
-  document.querySelector(".sidebar").classList.remove("open");
+  const moveFocus = document.querySelector(".student-sidebar").classList.contains("open");
+  setMenuOpen(false);
   renderPage();
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  if (moveFocus) document.querySelector("#page-content").focus({ preventScroll: true });
+  window.scrollTo({ top: 0 });
 }
 
 function renderPage() {
@@ -757,6 +772,22 @@ function suggestedTaskForStage(stage) {
   })[stage] || projectTasks[0];
 }
 
+let modalTrigger;
+
+function dismissModal(restoreFocus = true) {
+  document.querySelector("#modal-root").replaceChildren();
+  if (restoreFocus) (modalTrigger?.isConnected ? modalTrigger : document.querySelector("#page-content")).focus();
+  modalTrigger = null;
+}
+
+function bindModalDismissal(root) {
+  modalTrigger = document.activeElement;
+  root.querySelector(".modal").addEventListener("click", event => event.stopPropagation());
+  root.querySelectorAll("[data-close-modal]").forEach(element => {
+    element.addEventListener("click", () => dismissModal());
+  });
+}
+
 function openProjectWizard(editing = false) {
   const root = document.querySelector("#modal-root");
   const meta = editing ? state.project : createProjectMeta();
@@ -766,7 +797,7 @@ function openProjectWizard(editing = false) {
   root.innerHTML = `<div class="modal-backdrop" data-close-modal>
     <div class="modal project-wizard" role="dialog" aria-modal="true" aria-label="${editing ? "编辑科创项目" : "创建科创项目"}">
       <div class="modal-head"><div><span class="wizard-kicker">PROJECT SETUP</span><h2>${editing ? "编辑科创项目" : "创建科创项目"}</h2></div><button class="modal-close" data-close-modal aria-label="关闭">×</button></div>
-      <div class="wizard-progress" aria-label="创建进度"><span class="active" data-wizard-dot="1"><b>1</b>基本信息</span><i></i><span data-wizard-dot="2"><b>2</b>比赛信息</span><i></i><span data-wizard-dot="3"><b>3</b>当前任务</span></div>
+      <div class="wizard-progress" aria-label="创建进度"><span class="active" data-wizard-dot="1" aria-current="step"><b>1</b>基本信息</span><i></i><span data-wizard-dot="2"><b>2</b>比赛信息</span><i></i><span data-wizard-dot="3"><b>3</b>当前任务</span></div>
       <form id="project-wizard-form">
         <div class="modal-body wizard-panel" data-wizard-panel="1">
           <div class="wizard-intro"><strong>先说明项目现在是什么状态</strong><p>后续可以随时修改，不需要一次填写完整。</p></div>
@@ -791,7 +822,6 @@ function openProjectWizard(editing = false) {
 
   let step = 1;
   const form = root.querySelector("#project-wizard-form");
-  const modal = root.querySelector(".modal");
   const back = root.querySelector("[data-wizard-back]");
   const next = root.querySelector("[data-wizard-next]");
   const finish = root.querySelector("[data-wizard-finish]");
@@ -809,21 +839,33 @@ function openProjectWizard(editing = false) {
   function showStep(target) {
     step = target;
     root.querySelectorAll("[data-wizard-panel]").forEach(panel => { panel.hidden = Number(panel.dataset.wizardPanel) !== step; });
-    root.querySelectorAll("[data-wizard-dot]").forEach(dot => dot.classList.toggle("active", Number(dot.dataset.wizardDot) <= step));
+    root.querySelectorAll("[data-wizard-dot]").forEach(dot => {
+      const index = Number(dot.dataset.wizardDot);
+      dot.classList.toggle("active", index <= step);
+      if (index === step) dot.setAttribute("aria-current", "step");
+      else dot.removeAttribute("aria-current");
+    });
     back.hidden = step === 1;
     next.hidden = step === 3;
     finish.hidden = step !== 3;
     if (step === 3) updatePriorityOptions();
+    const sectionTitle = root.querySelector(`[data-wizard-panel="${step}"] .wizard-intro strong`);
+    sectionTitle.tabIndex = -1;
+    sectionTitle.focus();
   }
 
   function validateStepOne() {
-    if (!form.querySelector("#wizard-name").value.trim()) return showToast("请填写项目名称"), false;
+    const name = form.querySelector("#wizard-name");
+    if (!name.value.trim()) {
+      name.focus();
+      showToast("请填写项目名称");
+      return false;
+    }
     if (!form.querySelector('[name="wizard-stage"]:checked')) return showToast("请选择当前项目阶段"), false;
     return true;
   }
 
-  modal.addEventListener("click", event => event.stopPropagation());
-  root.querySelectorAll("[data-close-modal]").forEach(el => el.addEventListener("click", () => { root.innerHTML = ""; }));
+  bindModalDismissal(root);
   next.addEventListener("click", () => { if (step === 1 && !validateStepOne()) return; showStep(step + 1); });
   back.addEventListener("click", () => showStep(step - 1));
   form.querySelectorAll('[name="wizard-task"]').forEach(input => input.addEventListener("change", updatePriorityOptions));
@@ -842,7 +884,10 @@ function openProjectWizard(editing = false) {
     event.preventDefault();
     if (!validateStepOne()) return showStep(1);
     const tasks = [...form.querySelectorAll('[name="wizard-task"]:checked')].map(input => input.value);
-    if (!tasks.length) return showToast("请至少选择一项当前任务");
+    if (!tasks.length) {
+      form.querySelector('[name="wizard-task"]').focus();
+      return showToast("请至少选择一项当前任务");
+    }
     const phase = form.querySelector('[name="wizard-stage"]:checked').value;
     const now = Date.now();
     if (!editing) {
@@ -871,8 +916,10 @@ function openProjectWizard(editing = false) {
     };
     state.activePage = "workspace";
     saveState();
-    root.innerHTML = "";
+    dismissModal(false);
+    showWorkspace();
     navigate("workspace");
+    document.querySelector("#page-content").focus({ preventScroll: true });
     showToast(editing ? "项目信息已更新" : "科创项目已创建");
   });
   updatePriorityOptions();
@@ -889,8 +936,7 @@ function openModal(type) {
   };
   const c = configs[type];
   root.innerHTML = `<div class="modal-backdrop" data-close-modal><div class="modal" role="dialog" aria-modal="true" aria-label="${c.title}"><div class="modal-head"><h2>${c.title}</h2><button class="modal-close" data-close-modal>×</button></div><div class="modal-body">${c.body}</div><div class="modal-footer"><button class="button button-secondary" data-close-modal>取消</button><button class="button button-primary" data-save-modal="${type}">${c.save}</button></div></div></div>`;
-  root.querySelector(".modal").addEventListener("click", e=>e.stopPropagation());
-  root.querySelectorAll("[data-close-modal]").forEach(el=>el.addEventListener("click",()=>root.innerHTML=""));
+  bindModalDismissal(root);
   root.querySelector("[data-save-modal]").addEventListener("click",()=>saveModal(type));
   root.querySelector("#modal-name")?.focus();
 }
@@ -910,7 +956,7 @@ function saveModal(type) {
     state.materials.unshift({ id:`m${Date.now()}`,title:name,type:materialType,source:root.querySelector("#modal-source").value.trim()||"用户上传",content:desc||"未填写内容摘要",date:"刚刚",icon:materialType[0] });
     state.project.progress = Math.max(state.project.progress,35);
   }
-  saveState(); root.innerHTML=""; renderPage(); showToast("已保存到本地演示项目");
+  saveState(); dismissModal(false); renderPage(); showToast("已保存到本地演示项目");
 }
 
 function viewReport(id) {
@@ -948,10 +994,13 @@ document.addEventListener("click", e => {
   const action = e.target.closest("[data-action]")?.dataset.action;
   if (!action) return;
   if (action === "enter-sample") enterDemo("sample");
-  if (action === "enter-empty") enterDemo("blank");
+  if (action === "enter-empty") openProjectWizard();
   if (action === "resume-demo") enterDemo("resume");
   if (action === "show-landing") showLanding();
-  if (action === "toggle-menu") document.querySelector(".sidebar").classList.toggle("open");
+  if (action === "toggle-menu") {
+    const open = document.querySelector(".student-sidebar").classList.contains("open");
+    setMenuOpen(!open, open);
+  }
   if (action === "reset-demo") {
     if (confirm(`重置“${state.project.name}”的资料、Persona 和验证记录？其他项目不会受到影响。`)) {
       const meta = { ...state.project, progress: 0, updatedAt: Date.now() };
@@ -967,7 +1016,24 @@ document.addEventListener("click", e => {
 });
 
 document.addEventListener("keydown", event => {
-  if (event.key === "Escape") document.querySelector("#modal-root").innerHTML = "";
+  const modal = document.querySelector("#modal-root .modal");
+  if (event.key === "Escape") {
+    if (modal) dismissModal();
+    else if (document.querySelector(".student-sidebar.open")) setMenuOpen(false, true);
+    return;
+  }
+  if (event.key !== "Tab" || !modal) return;
+  const controls = [...modal.querySelectorAll('button, input, textarea, select, a[href]')]
+    .filter(element => !element.disabled && element.getClientRects().length);
+  const first = controls[0];
+  const last = controls.at(-1);
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 });
 
 document.querySelectorAll("[data-nav]").forEach(el => el.addEventListener("click", e => { e.preventDefault(); navigate(el.dataset.nav); }));

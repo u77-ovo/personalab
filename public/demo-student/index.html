@@ -10,6 +10,7 @@
     <link rel="preload" as="image" href="./assets/personalab-xiaop.webp" type="image/webp" />
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./student-blue.css?v=2.3" />
+    <link rel="stylesheet" href="./student-polish.css?v=2.4" />
   </head>
   <body>
     <main id="landing" class="landing student-landing">
@@ -19,7 +20,6 @@
           <span class="student-edition">STUDENT</span>
         </a>
         <div class="landing-nav-right">
-          <span class="status-pill"><span class="status-dot"></span>V2.0 独立学生版</span>
           <button id="resume-button" class="button button-ghost" data-action="resume-demo" hidden>继续上次项目</button>
           <button class="button button-ghost" data-action="enter-empty">新建项目</button>
         </div>
@@ -27,9 +27,9 @@
 
       <section class="hero student-hero">
         <div class="hero-copy">
-          <div class="hero-badge"><span>科创团队</span><b>项目制验证工作台</b></div>
-          <h1>让好创意，<br /><span>经得起验证。</span></h1>
-          <p class="hero-lead">从真实场景和不同人群的痛点出发，用 Spark 梳理需求、用 Mirror 预演原型，再把真人观察、迭代依据和参赛材料连成一条可信证据链。</p>
+          <p class="hero-label">科创团队验证工作台</p>
+          <h1>让好创意，<span>经得起验证。</span></h1>
+          <p class="hero-lead">梳理不同人群的需求与痛点，预演原型。把真人测试与迭代依据整理成参赛材料。</p>
           <div class="hero-actions">
             <button class="button button-primary button-large" data-action="enter-empty">创建科创项目 <span aria-hidden="true">→</span></button>
             <button class="button button-secondary button-large" data-action="enter-sample">体验完整案例</button>
@@ -45,21 +45,21 @@
           <div class="blue-orbit orbit-one" aria-hidden="true"></div>
           <div class="blue-orbit orbit-two" aria-hidden="true"></div>
           <article class="student-hero-board">
-            <header><div><span class="pulse-dot"></span><small>PROJECT COCKPIT</small></div><span class="board-status">验证进行中</span></header>
+            <header><div><span class="pulse-dot" aria-hidden="true"></span><small>示例项目</small></div><span class="board-status">验证进行中</span></header>
             <p class="board-kicker">校园 AI 学习助手</p>
             <h2>临时任务出现时，学生能否更快完成重排？</h2>
-            <div class="board-progress"><span style="width: 62%"></span></div>
+            <div class="board-progress" aria-hidden="true"><span style="width: 62%"></span></div>
             <div class="board-metrics"><div><strong>3</strong><small>重点人群</small></div><div><strong>2</strong><small>来源资料</small></div><div><strong>1</strong><small>待测假设</small></div></div>
             <div class="board-next"><span>下一步</span><b>用 Mirror 走查核心任务 →</b></div>
           </article>
-          <div class="floating-module floating-spark"><i>✦</i><div><strong>Spark</strong><small>从痛点到假设</small></div></div>
-          <div class="floating-module floating-mirror"><i>◫</i><div><strong>Mirror</strong><small>从原型到问题</small></div></div>
+          <div class="floating-module floating-spark"><i aria-hidden="true">✦</i><div><strong>Spark</strong><small>从痛点到假设</small></div></div>
+          <div class="floating-module floating-mirror"><i aria-hidden="true">◫</i><div><strong>Mirror</strong><small>从原型到问题</small></div></div>
           <div class="hero-xiaop student-xiaop"><div class="xiaop-speech"><strong>别急着证明“它很好”</strong><span>先找到一个可以被观察的变化。</span></div><img src="./assets/personalab-xiaop.webp" alt="拿着放大镜的 PersonaLab 小P" /></div>
         </div>
       </section>
 
       <section class="student-flow" aria-label="科创团队验证路径">
-        <div class="flow-intro"><span>VALIDATION LOOP</span><h2>一条可执行的赛前验证路径</h2><p>每一步都有输入、产出和下一步动作。</p></div>
+        <div class="flow-intro"><h2>项目验证流程</h2></div>
         <div class="flow-track">
           <article><b>01</b><div><strong>定义场景</strong><small>谁在何时遇到什么阻碍</small></div></article><i>→</i>
           <article><b>02</b><div><strong>发现分歧</strong><small>不同 Persona 看重什么</small></div></article><i>→</i>
@@ -71,32 +71,32 @@
     </main>
 
     <div id="app" class="app-shell" hidden>
-      <aside class="sidebar student-sidebar">
+      <aside class="sidebar student-sidebar" id="student-navigation">
         <div class="sidebar-top"><a class="brand brand-sidebar" href="#" data-nav="workspace"><img class="brand-icon" src="./assets/personalab-logo-icon.png" alt="" /><span class="brand-label">PersonaLab</span></a><span class="student-side-badge">STUDENT</span></div>
         <nav class="main-nav" aria-label="主要导航">
           <p class="nav-group-label">项目中心</p>
-          <button class="nav-item active" data-nav="workspace"><span class="nav-icon">⌂</span><span class="nav-label"><b>总览</b><small>Project cockpit</small></span></button>
-          <button class="nav-item" data-nav="student"><span class="nav-icon">◇</span><span class="nav-label"><b>科创工作台</b><small>Plan &amp; validate</small></span></button>
+          <button class="nav-item active" data-nav="workspace"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label"><b>项目总览</b></span></button>
+          <button class="nav-item" data-nav="student"><span class="nav-icon" aria-hidden="true">◇</span><span class="nav-label"><b>科创工作台</b></span></button>
           <p class="nav-group-label">验证工具</p>
-          <button class="nav-item" data-nav="spark"><span class="nav-icon nav-icon-spark">✦</span><span class="nav-label"><b>Spark</b><small>需求探索</small></span></button>
-          <button class="nav-item" data-nav="mirror"><span class="nav-icon nav-icon-mirror">◫</span><span class="nav-label"><b>Mirror</b><small>原型预演</small></span></button>
+          <button class="nav-item" data-nav="spark"><span class="nav-icon nav-icon-spark" aria-hidden="true">✦</span><span class="nav-label"><b>Spark</b><small>需求探索</small></span></button>
+          <button class="nav-item" data-nav="mirror"><span class="nav-icon nav-icon-mirror" aria-hidden="true">◫</span><span class="nav-label"><b>Mirror</b><small>原型预演</small></span></button>
           <p class="nav-group-label">项目资产</p>
-          <button class="nav-item" data-nav="personas"><span class="nav-icon">◎</span><span class="nav-label"><b>Persona</b><small>重点人群</small></span></button>
-          <button class="nav-item" data-nav="materials"><span class="nav-icon">▤</span><span class="nav-label"><b>证据库</b><small>资料与来源</small></span></button>
-          <button class="nav-item" data-nav="reports"><span class="nav-icon">▥</span><span class="nav-label"><b>报告</b><small>验证记录</small></span></button>
+          <button class="nav-item" data-nav="personas"><span class="nav-icon" aria-hidden="true">◎</span><span class="nav-label"><b>Persona</b><small>重点人群</small></span></button>
+          <button class="nav-item" data-nav="materials"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label"><b>证据库</b><small>资料与来源</small></span></button>
+          <button class="nav-item" data-nav="reports"><span class="nav-icon" aria-hidden="true">▥</span><span class="nav-label"><b>报告</b><small>验证记录</small></span></button>
         </nav>
         <div class="sidebar-bottom"><div class="xiaop-mini-card"><img src="./assets/personalab-xiaop.webp" alt="" /><div><strong>小P 提醒</strong><small>模拟洞察不是用户证据</small></div></div><div class="sidebar-utility"><button class="text-button" data-action="show-landing">返回产品首页</button><button class="text-button" data-action="reset-demo">重置当前项目</button></div></div>
       </aside>
       <button class="sidebar-backdrop" data-action="toggle-menu" aria-label="关闭导航"></button>
       <div class="app-main">
-        <header class="topbar"><button class="mobile-menu" data-action="toggle-menu" aria-label="打开导航">☰</button><div class="breadcrumb"><span>PersonaLab Student</span><b>/</b><strong id="page-title">项目总览</strong></div><div class="topbar-actions"><span class="local-state"><span class="status-dot"></span>本地自动保存</span><button class="icon-button" aria-label="帮助" data-action="show-help">?</button><button class="avatar-button" aria-label="本地模式">本</button></div></header>
-        <div id="page-content" class="page-content" aria-live="polite"></div>
+        <header class="topbar"><button class="mobile-menu" data-action="toggle-menu" aria-label="项目导航" aria-controls="student-navigation" aria-expanded="false">☰</button><div class="breadcrumb"><span>PersonaLab Student</span><b>/</b><strong id="page-title">项目总览</strong></div><div class="topbar-actions"><span class="local-state"><span class="status-dot"></span>本地自动保存</span><button class="icon-button" aria-label="帮助" data-action="show-help">?</button></div></header>
+        <div id="page-content" class="page-content" aria-live="polite" tabindex="-1"></div>
       </div>
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <div id="modal-root"></div>
     <script src="./student.js?v=2.3"></script>
-    <script src="./app.js?v=2.3"></script>
+    <script src="./app.js?v=2.4"></script>
   </body>
 </html>

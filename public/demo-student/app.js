@@ -1,6 +1,5 @@
 const STORAGE_KEY = "personalab.student.v2";
 const PROJECTS_KEY = `${STORAGE_KEY}.projects`;
-const VISITED_KEY = `${STORAGE_KEY}.visited`;
 
 const projectStages = ["只有初步想法", "已确定项目方向", "已有产品原型", "正在进行用户验证", "正在准备比赛材料"];
 const projectTasks = ["寻找真实场景和痛点", "明确目标用户", "梳理产品需求", "完善产品原型", "开展用户验证", "整理比赛材料"];
@@ -86,7 +85,7 @@ const pageTitles = {
 };
 
 let state = loadState();
-let projectLibrary = loadProjectLibrary();
+let projectLibrary = loadProjectLibrary(state);
 const latestActiveProject = projectLibrary.find(item => !item.project?.archived);
 if (!hasSavedProject(state) && latestActiveProject) state = normalizeStoredState(latestActiveProject);
 let currentSparkResult = state.sparkRuns[0] || null;
@@ -131,15 +130,13 @@ function normalizeStoredState(parsed = {}) {
   };
 }
 
-function loadProjectLibrary() {
+function loadProjectLibrary(active) {
   try {
     const parsed = JSON.parse(localStorage.getItem(PROJECTS_KEY) || "[]");
     const projects = Array.isArray(parsed) ? parsed.map(normalizeStoredState) : [];
-    const active = loadState();
     if (hasSavedProject(active) && !projects.some(item => item.project.id === active.project.id)) projects.push(active);
     return projects.sort((a, b) => (b.project.updatedAt || b.updatedAt || 0) - (a.project.updatedAt || a.updatedAt || 0));
   } catch {
-    const active = loadState();
     return hasSavedProject(active) ? [active] : [];
   }
 }
@@ -233,8 +230,7 @@ function showToast(message) {
   showToast.timer = setTimeout(() => toast.classList.remove("show"), 2200);
 }
 
-function enterDemo(mode = "resume") {
-  localStorage.setItem(VISITED_KEY, "1");
+function enterDemo(mode = "resume", destination) {
   if (mode === "sample") {
     state = sampleState();
     currentSparkResult = null;
@@ -245,16 +241,15 @@ function enterDemo(mode = "resume") {
     currentSparkResult = null;
     currentMirrorResult = null;
   } else {
-    const stored = loadState();
-    state = hasSavedProject(stored) && !stored.project.archived
-      ? stored
-      : normalizeStoredState(projectLibrary.find(item => !item.project.archived) || initialState());
+    if (!hasSavedProject(state) || state.project.archived) {
+      state = normalizeStoredState(projectLibrary.find(item => !item.project.archived) || initialState());
+    }
     currentSparkResult = state.sparkRuns[0] || null;
     currentMirrorResult = state.mirrorRuns[0] || null;
   }
   document.querySelector("#landing").hidden = true;
   document.querySelector("#app").hidden = false;
-  navigate(state.activePage || "workspace");
+  navigate(destination || state.activePage || "workspace");
   if (mode === "blank") setTimeout(() => openProjectWizard(), 0);
 }
 
@@ -282,27 +277,9 @@ function renderPage() {
   bindPageEvents();
 }
 
-function calculateSnapshotReadiness(snapshot) {
-  const project = snapshot.studentProject || {};
-  const ownEvidence = (snapshot.materials || []).some(item => !item.isSample && item.content?.trim() && item.content !== "未填写内容摘要");
-  const checks = [
-    Boolean(project.audience && project.problem),
-    ownEvidence,
-    Boolean(project.innovation && project.aiRole),
-    (project.focusPersonas || []).length >= 3,
-    (snapshot.sparkRuns || []).length > 0,
-    (snapshot.mirrorRuns || []).length > 0,
-    Boolean(project.hypothesis && project.testTask && project.testPlan && project.successMetric),
-    Boolean(project.testResult && project.iterationPlan)
-  ];
-  const rawDone = checks.filter(Boolean).length;
-  const done = snapshot.isSample ? Math.max(rawDone, 4) : rawDone;
-  return { done, score: Math.round(done / checks.length * 100) };
-}
-
 function projectCardHTML(snapshot, archived = false) {
   const meta = snapshot.project;
-  const readiness = calculateSnapshotReadiness(snapshot);
+  const readiness = window.studentWorkbench.readinessFor(snapshot);
   const runCount = (snapshot.sparkRuns || []).length + (snapshot.mirrorRuns || []).length;
   const isCurrent = meta.id === state.project.id && !archived;
   const competition = meta.competition?.name ? `<span title="比赛名称">${escapeHTML(meta.competition.name)}</span>` : "";
@@ -664,9 +641,6 @@ function bindPageEvents() {
   document.querySelectorAll("[data-project-delete]").forEach(el => el.addEventListener("click", () => deleteProject(el.dataset.projectDelete)));
   document.querySelector("#spark-form")?.addEventListener("submit", e => { e.preventDefault(); runSpark(e.currentTarget); });
   document.querySelector("#mirror-form")?.addEventListener("submit", e => { e.preventDefault(); runMirror(e.currentTarget); });
-  const studentForm = document.querySelector("#student-form");
-  studentForm?.addEventListener("change", e => window.studentWorkbench.store(e.currentTarget));
-  studentForm?.addEventListener("submit", e => { e.preventDefault(); window.studentWorkbench.save(e.currentTarget); });
   document.querySelectorAll("[data-export-student]").forEach(el => el.addEventListener("click", () => window.studentWorkbench.export()));
   document.querySelector("#mirror-file")?.addEventListener("change", e => { const file=e.target.files[0]; document.querySelector("#upload-label").textContent=file?`已选择：${file.name}`:"也可以上传本地文件"; });
   document.querySelectorAll("[data-download-report]").forEach(el => el.addEventListener("click", () => downloadReport(el.dataset.downloadReport)));
@@ -998,7 +972,7 @@ document.addEventListener("keydown", event => {
 
 document.querySelectorAll("[data-nav]").forEach(el => el.addEventListener("click", e => { e.preventDefault(); navigate(el.dataset.nav); }));
 syncResumeButton();
-if (localStorage.getItem(VISITED_KEY) === "1" && projectLibrary.some(item => !item.project.archived)) {
-  enterDemo("resume");
+if (projectLibrary.some(item => !item.project.archived)) {
+  enterDemo("resume", "workspace");
 }
 

@@ -343,3 +343,113 @@ body { background: #f6f9fe; }
   .student-project-gallery { grid-template-columns: 1fr; }.student-new-project-card { min-height: 180px; }
   .project-wizard { max-height: 94vh; border-radius: 14px; }.wizard-progress { padding: 12px 15px; }.wizard-progress > span { font-size: 0; }.wizard-progress > i { margin: 0 6px; }.wizard-panel { min-height: 0; padding: 16px; }.stage-choice-grid { grid-template-columns: 1fr 1fr; }.stage-choice:last-child { grid-column: 1 / -1; }.stage-choice span { min-height: 72px; }.task-choice-grid { grid-template-columns: 1fr; }.wizard-footer { padding: 12px 14px; }
 }
+
+.blueprint-layout {
+  display: grid;
+  grid-template-columns: minmax(222px, 270px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.blueprint-nav, .blueprint-editor { min-width: 0; padding: 20px; }
+.blueprint-nav h2 { margin: 0 0 12px; color: #17355f; font-size: 17px; }
+.blueprint-nav label { display: block; color: #435f82; font-size: 13px; }
+.blueprint-nav progress {
+  display: block;
+  width: 100%;
+  height: 7px;
+  margin: 8px 0 18px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: #e5eefb;
+  accent-color: #1769ff;
+}
+.blueprint-nav progress::-webkit-progress-bar { background: #e5eefb; }
+.blueprint-nav progress::-webkit-progress-value { border-radius: 999px; background: #1769ff; }
+.blueprint-steps { display: grid; gap: 6px; }
+.blueprint-step {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 52px;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: #263e60;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+.blueprint-step-number {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  place-items: center;
+  border-radius: 7px;
+  color: #315581;
+  font-size: 12px;
+  background: #edf3fc;
+}
+.blueprint-step[aria-current="step"], .blueprint-step:hover { border-color: #bbd2f8; background: #edf5ff; }
+.blueprint-step[aria-current="step"] .blueprint-step-number { color: white; background: #1769ff; }
+.blueprint-step:focus-visible, .blueprint-layout .button:focus-visible {
+  outline: 2px solid #1769ff;
+  outline-offset: 2px;
+}
+.blueprint-step-label strong, .blueprint-step-label small { display: block; line-height: 1.35; }
+.blueprint-step-label strong { font-size: 13px; }
+.blueprint-step-label small { margin-top: 3px; color: #516687; font-size: 11px; }
+.blueprint-step-label small[data-blueprint-step-status="已填写"] { color: #14634e; }
+.blueprint-step-label small[data-blueprint-step-status="填写中"] { color: #9b4616; }
+.blueprint-editor { padding: clamp(16px, 3vw, 28px); }
+.blueprint-editor-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px 20px;
+}
+.blueprint-editor-head span { color: #a74512; font-size: 12px; font-weight: 750; }
+.blueprint-editor-head h3 { margin: 4px 0 0; color: #17355f; font-size: clamp(18px, 2.5vw, 24px); scroll-margin-top: 88px; }
+#blueprint-save-status { margin: 2px 0 0; color: #435f82; font-size: 12px; line-height: 1.45; }
+#blueprint-save-status.save-error { color: #a42824; }
+.blueprint-tip {
+  margin: 16px 0 22px;
+  padding: 10px 13px;
+  border-left: 3px solid #f28649;
+  border-radius: 0 8px 8px 0;
+  color: #594637;
+  background: #fff4eb;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.blueprint-editor .form-label { color: #1d3c66; font-size: 14px; }
+.blueprint-editor .form-label small { color: #516687; font-size: 12px; }
+.blueprint-editor .textarea, .blueprint-editor .select { font-size: 15px; }
+.blueprint-editor .blueprint-add-evidence { margin-top: 8px; min-height: 36px; padding: 0; font-size: 13px; }
+.blueprint-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #dce7f5;
+}
+.blueprint-footer > span { flex: 1; color: #516687; font-size: 12px; }
+.blueprint-footer .button { min-height: 42px; white-space: nowrap; }
+.project-snapshot-card .snapshot-block p { white-space: pre-line; }
+
+@media (max-width: 880px) {
+  .blueprint-layout { grid-template-columns: minmax(0, 1fr); }
+  .blueprint-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .blueprint-nav { padding: 15px; }
+  .blueprint-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .blueprint-step { gap: 5px; padding: 6px 4px; }
+  .blueprint-editor .textarea, .blueprint-editor .select { font-size: 16px; }
+  .blueprint-footer > span { flex: 0 0 100%; order: -1; }
+  .blueprint-footer .button-primary { margin-left: auto; }
+}

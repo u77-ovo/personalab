@@ -12,7 +12,7 @@ const studentFields = [
 ];
 
 const studentSample = {
-  audience: "大学生在课程或作业临时变化后，需要重新安排当天的课程、作业和小组任务。",
+  audience: "学生在课程或作业临时变化后，需要重新安排当天的课程、作业和小组任务。",
   problem: "学生通常在课程表和待办清单之间手动调整，遇到任务冲突时需要逐项判断优先级，也难以看清调整理由。",
   innovation: "系统先解释时间冲突和任务依赖，再给出可修改的调整草案，让学生逐条接受、修改或撤回。",
   aiRole: "智能体读取学生主动确认的任务清单和临时变更，生成备选顺序并解释依据，最终安排由学生确认。",
@@ -445,4 +445,3 @@ window.studentWorkbench = {
   bind: bindStudentPage,
   readiness: getReadiness
 };
-

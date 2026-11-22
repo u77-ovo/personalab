@@ -3,13 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="PersonaLab V2.0-student，面向学生科创竞赛的需求洞察、Persona 痛点分析、原型预演、真人验证与材料整理工作台。" />
+    <meta name="description" content="PersonaLab V2.0-student，面向科创团队的需求洞察、Persona 痛点分析、原型预演、真人验证与比赛材料整理工作台。" />
     <meta name="theme-color" content="#1769ff" />
     <title>PersonaLab V2.0-student · 学生科创验证工作台</title>
     <link rel="preload" as="image" href="./assets/personalab-logo.png" />
     <link rel="preload" as="image" href="./assets/personalab-xiaop.webp" type="image/webp" />
     <link rel="stylesheet" href="./styles.css" />
-    <link rel="stylesheet" href="./student-blue.css?v=2.1.1" />
+    <link rel="stylesheet" href="./student-blue.css?v=2.2" />
   </head>
   <body>
     <main id="landing" class="landing student-landing">
@@ -27,12 +27,12 @@
 
       <section class="hero student-hero">
         <div class="hero-copy">
-          <div class="hero-badge"><span>学生赛道</span><b>科创竞赛验证工作台</b></div>
+          <div class="hero-badge"><span>科创团队</span><b>项目制验证工作台</b></div>
           <h1>让好创意，<br /><span>经得起验证。</span></h1>
           <p class="hero-lead">从真实场景和不同人群的痛点出发，用 Spark 梳理需求、用 Mirror 预演原型，再把真人观察、迭代依据和参赛材料连成一条可信证据链。</p>
           <div class="hero-actions">
-            <button class="button button-primary button-large" data-action="enter-sample">体验完整案例 <span aria-hidden="true">→</span></button>
-            <button class="button button-secondary button-large" data-action="enter-empty">创建我的项目</button>
+            <button class="button button-primary button-large" data-action="enter-empty">创建科创项目 <span aria-hidden="true">→</span></button>
+            <button class="button button-secondary button-large" data-action="enter-sample">体验完整案例</button>
           </div>
           <div class="hero-trust">
             <span><b>✓</b> 无需注册</span>
@@ -58,7 +58,7 @@
         </div>
       </section>
 
-      <section class="student-flow" aria-label="学生科创验证路径">
+      <section class="student-flow" aria-label="科创团队验证路径">
         <div class="flow-intro"><span>VALIDATION LOOP</span><h2>一条可执行的赛前验证路径</h2><p>每一步都有输入、产出和下一步动作。</p></div>
         <div class="flow-track">
           <article><b>01</b><div><strong>定义场景</strong><small>谁在何时遇到什么阻碍</small></div></article><i>→</i>
@@ -85,7 +85,7 @@
           <button class="nav-item" data-nav="materials"><span class="nav-icon">▤</span><span class="nav-label"><b>证据库</b><small>资料与来源</small></span></button>
           <button class="nav-item" data-nav="reports"><span class="nav-icon">▥</span><span class="nav-label"><b>报告</b><small>验证记录</small></span></button>
         </nav>
-        <div class="sidebar-bottom"><div class="xiaop-mini-card"><img src="./assets/personalab-xiaop.webp" alt="" /><div><strong>小P 提醒</strong><small>模拟洞察不是用户证据</small></div></div><button class="text-button" data-action="reset-demo">重置当前项目</button></div>
+        <div class="sidebar-bottom"><div class="xiaop-mini-card"><img src="./assets/personalab-xiaop.webp" alt="" /><div><strong>小P 提醒</strong><small>模拟洞察不是用户证据</small></div></div><div class="sidebar-utility"><button class="text-button" data-action="show-landing">返回产品首页</button><button class="text-button" data-action="reset-demo">重置当前项目</button></div></div>
       </aside>
       <button class="sidebar-backdrop" data-action="toggle-menu" aria-label="关闭导航"></button>
       <div class="app-main">
@@ -96,7 +96,7 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <div id="modal-root"></div>
-    <script src="./student.js"></script>
-    <script src="./app.js"></script>
+    <script src="./student.js?v=2.2"></script>
+    <script src="./app.js?v=2.2"></script>
   </body>
 </html>

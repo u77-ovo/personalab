@@ -1,4 +1,32 @@
 const STORAGE_KEY = "personalab.student.v2";
+const PROJECTS_KEY = `${STORAGE_KEY}.projects`;
+const VISITED_KEY = `${STORAGE_KEY}.visited`;
+
+const projectStages = ["只有初步想法", "已确定项目方向", "已有产品原型", "正在进行用户验证", "正在准备比赛材料"];
+const projectTasks = ["寻找真实场景和痛点", "明确目标用户", "梳理产品需求", "完善产品原型", "开展用户验证", "整理比赛材料"];
+
+function createProjectId() {
+  return globalThis.crypto?.randomUUID?.() || `project-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function createProjectMeta(overrides = {}) {
+  const now = Date.now();
+  return {
+    id: createProjectId(),
+    name: "未命名项目",
+    description: "从真实场景、目标人群与可验证问题开始",
+    stage: "探索期",
+    phase: projectStages[0],
+    progress: 0,
+    tasks: [],
+    priorityTask: "",
+    competition: { name: "", direction: "", deadline: "" },
+    archived: false,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides
+  };
+}
 
 const builtInPersonas = [
   { id: "p1", name: "目标明确的新用户", short: "新", color: "#7666e6", type: "平台预设", desc: "第一次接触产品，需要快速理解价值、入口和下一步动作。", traits: ["低熟悉度", "需要引导", "易流失"] },
@@ -14,9 +42,9 @@ const sampleMaterials = [
   { id: "m2", title: "学习计划工具对比记录", type: "竞品资料", source: "内置示例", content: "可比较的维度包括任务导入、提醒、冲突提示和推荐理由。实际产品能力待逐项核对。", date: "示例", icon: "竞", isSample: true }
 ];
 
-const initialState = () => ({
-  schemaVersion: 4,
-  project: { name: "未命名项目", description: "从 Spark 或 Mirror 开始第一次验证", stage: "探索期", progress: 0 },
+const initialState = (projectOverrides = {}) => ({
+  schemaVersion: 5,
+  project: createProjectMeta(projectOverrides),
   personas: [...builtInPersonas],
   materials: [],
   sparkRuns: [],
@@ -27,9 +55,17 @@ const initialState = () => ({
 });
 
 const sampleState = () => ({
-  schemaVersion: 4,
+  schemaVersion: 5,
   isSample: true,
-  project: { name: "校园 AI 学习助手", description: "内置案例：面向大学生的动态任务规划与学习支持产品", stage: "示例项目", progress: 0 },
+  project: createProjectMeta({
+    name: "校园 AI 学习助手",
+    description: "内置案例：围绕临时任务冲突进行需求探索、原型预演与真人验证",
+    stage: "示例项目",
+    phase: "正在进行用户验证",
+    progress: 45,
+    tasks: ["梳理产品需求", "完善产品原型", "开展用户验证"],
+    priorityTask: "开展用户验证"
+  }),
   personas: [...builtInPersonas],
   materials: [...sampleMaterials],
   sparkRuns: [],
@@ -50,6 +86,9 @@ const pageTitles = {
 };
 
 let state = loadState();
+let projectLibrary = loadProjectLibrary();
+const latestActiveProject = projectLibrary.find(item => !item.project?.archived);
+if (!hasSavedProject(state) && latestActiveProject) state = normalizeStoredState(latestActiveProject);
 let currentSparkResult = state.sparkRuns[0] || null;
 let currentMirrorResult = state.mirrorRuns[0] || null;
 
@@ -57,23 +96,71 @@ function loadState() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return initialState();
-    const parsed = JSON.parse(stored);
-    const defaults = initialState();
-    return {
-      ...defaults,
-      ...parsed,
-      activePage: Object.hasOwn(pageTitles, parsed.activePage) ? parsed.activePage : defaults.activePage,
-      schemaVersion: 4,
-      project: { ...defaults.project, ...(parsed.project || {}) },
-      personas: Array.isArray(parsed.personas) ? parsed.personas : defaults.personas,
-      materials: Array.isArray(parsed.materials) ? parsed.materials : [],
-      sparkRuns: Array.isArray(parsed.sparkRuns) ? parsed.sparkRuns.map(normalizeSparkRun) : [],
-      mirrorRuns: Array.isArray(parsed.mirrorRuns) ? parsed.mirrorRuns.map(normalizeMirrorRun) : [],
-      reports: Array.isArray(parsed.reports) ? parsed.reports : []
-    };
+    return normalizeStoredState(JSON.parse(stored));
   } catch {
     return initialState();
   }
+}
+
+function normalizeStoredState(parsed = {}) {
+  const defaults = initialState();
+  const parsedProject = parsed.project || {};
+  const competition = parsedProject.competition || {};
+  return {
+    ...defaults,
+    ...parsed,
+    activePage: Object.hasOwn(pageTitles, parsed.activePage) ? parsed.activePage : defaults.activePage,
+    schemaVersion: 5,
+    project: {
+      ...defaults.project,
+      ...parsedProject,
+      id: parsedProject.id || createProjectId(),
+      phase: parsedProject.phase || (projectStages.includes(parsedProject.stage) ? parsedProject.stage : projectStages[0]),
+      tasks: Array.isArray(parsedProject.tasks) ? parsedProject.tasks.filter(task => projectTasks.includes(task)) : [],
+      priorityTask: projectTasks.includes(parsedProject.priorityTask) ? parsedProject.priorityTask : "",
+      competition: { ...defaults.project.competition, ...competition },
+      archived: Boolean(parsedProject.archived),
+      createdAt: parsedProject.createdAt || parsed.updatedAt || Date.now(),
+      updatedAt: parsedProject.updatedAt || parsed.updatedAt || Date.now()
+    },
+    personas: Array.isArray(parsed.personas) ? parsed.personas : defaults.personas,
+    materials: Array.isArray(parsed.materials) ? parsed.materials : [],
+    sparkRuns: Array.isArray(parsed.sparkRuns) ? parsed.sparkRuns.map(normalizeSparkRun) : [],
+    mirrorRuns: Array.isArray(parsed.mirrorRuns) ? parsed.mirrorRuns.map(normalizeMirrorRun) : [],
+    reports: Array.isArray(parsed.reports) ? parsed.reports : []
+  };
+}
+
+function loadProjectLibrary() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PROJECTS_KEY) || "[]");
+    const projects = Array.isArray(parsed) ? parsed.map(normalizeStoredState) : [];
+    const active = loadState();
+    if (hasSavedProject(active) && !projects.some(item => item.project.id === active.project.id)) projects.push(active);
+    return projects.sort((a, b) => (b.project.updatedAt || b.updatedAt || 0) - (a.project.updatedAt || a.updatedAt || 0));
+  } catch {
+    const active = loadState();
+    return hasSavedProject(active) ? [active] : [];
+  }
+}
+
+function saveProjectLibrary() {
+  localStorage.setItem(PROJECTS_KEY, JSON.stringify(projectLibrary));
+}
+
+function snapshotState(source = state) {
+  return JSON.parse(JSON.stringify({ ...source, activePage: "workspace" }));
+}
+
+function upsertCurrentProject() {
+  if (!hasSavedProject(state)) return;
+  state.project.updatedAt = state.updatedAt;
+  const next = snapshotState();
+  const index = projectLibrary.findIndex(item => item.project.id === state.project.id);
+  if (index >= 0) projectLibrary[index] = next;
+  else projectLibrary.push(next);
+  projectLibrary.sort((a, b) => (b.project.updatedAt || 0) - (a.project.updatedAt || 0));
+  saveProjectLibrary();
 }
 
 function normalizeSparkRun(run) {
@@ -101,22 +188,27 @@ function normalizeMirrorRun(run) {
 
 function saveState() {
   state.updatedAt = Date.now();
+  state.project.updatedAt = state.updatedAt;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  upsertCurrentProject();
   syncResumeButton();
 }
 
 function syncResumeButton() {
   const button = document.querySelector("#resume-button");
   if (!button) return;
-  const hasWork = hasSavedProject();
-  button.hidden = !hasWork;
-  if (hasWork) button.textContent = `继续：${state.project.name}`;
+  const resumeProject = hasSavedProject(state) && !state.project.archived
+    ? state
+    : projectLibrary.find(item => !item.project.archived);
+  button.hidden = !resumeProject;
+  if (resumeProject) button.textContent = `继续：${resumeProject.project.name}`;
 }
 
 function hasSavedProject() {
-  return state.project.name !== "未命名项目" || Boolean(state.studentProject) ||
-    state.materials.length > 0 || state.personas.length > builtInPersonas.length ||
-    state.sparkRuns.length > 0 || state.mirrorRuns.length > 0;
+  const candidate = arguments[0] || state;
+  return candidate.project?.name !== "未命名项目" || Boolean(candidate.studentProject) ||
+    candidate.materials?.length > 0 || candidate.personas?.length > builtInPersonas.length ||
+    candidate.sparkRuns?.length > 0 || candidate.mirrorRuns?.length > 0;
 }
 
 function formatRelativeTime(timestamp) {
@@ -142,7 +234,7 @@ function showToast(message) {
 }
 
 function enterDemo(mode = "resume") {
-  if (mode !== "resume" && hasSavedProject() && !confirm("打开新项目会替换当前学生版项目及其本地记录。确定继续吗？")) return;
+  localStorage.setItem(VISITED_KEY, "1");
   if (mode === "sample") {
     state = sampleState();
     currentSparkResult = null;
@@ -152,16 +244,26 @@ function enterDemo(mode = "resume") {
     state = initialState();
     currentSparkResult = null;
     currentMirrorResult = null;
-    saveState();
   } else {
-    state = loadState();
+    const stored = loadState();
+    state = hasSavedProject(stored) && !stored.project.archived
+      ? stored
+      : normalizeStoredState(projectLibrary.find(item => !item.project.archived) || initialState());
     currentSparkResult = state.sparkRuns[0] || null;
     currentMirrorResult = state.mirrorRuns[0] || null;
   }
   document.querySelector("#landing").hidden = true;
   document.querySelector("#app").hidden = false;
   navigate(state.activePage || "workspace");
-  if (mode === "blank") setTimeout(() => openModal("project"), 0);
+  if (mode === "blank") setTimeout(() => openProjectWizard(), 0);
+}
+
+function showLanding() {
+  document.querySelector("#app").hidden = true;
+  document.querySelector("#landing").hidden = false;
+  document.querySelector(".sidebar")?.classList.remove("open");
+  syncResumeButton();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function navigate(page) {
@@ -180,47 +282,90 @@ function renderPage() {
   bindPageEvents();
 }
 
+function calculateSnapshotReadiness(snapshot) {
+  const project = snapshot.studentProject || {};
+  const ownEvidence = (snapshot.materials || []).some(item => !item.isSample && item.content?.trim() && item.content !== "未填写内容摘要");
+  const checks = [
+    Boolean(project.audience && project.problem),
+    ownEvidence,
+    Boolean(project.innovation && project.aiRole),
+    (project.focusPersonas || []).length >= 3,
+    (snapshot.sparkRuns || []).length > 0,
+    (snapshot.mirrorRuns || []).length > 0,
+    Boolean(project.hypothesis && project.testTask && project.testPlan && project.successMetric),
+    Boolean(project.testResult && project.iterationPlan)
+  ];
+  const rawDone = checks.filter(Boolean).length;
+  const done = snapshot.isSample ? Math.max(rawDone, 4) : rawDone;
+  return { done, score: Math.round(done / checks.length * 100) };
+}
+
+function projectCardHTML(snapshot, archived = false) {
+  const meta = snapshot.project;
+  const readiness = calculateSnapshotReadiness(snapshot);
+  const runCount = (snapshot.sparkRuns || []).length + (snapshot.mirrorRuns || []).length;
+  const isCurrent = meta.id === state.project.id && !archived;
+  const competition = meta.competition?.name ? `<span title="比赛名称">${escapeHTML(meta.competition.name)}</span>` : "";
+  const deadline = meta.competition?.deadline ? `<span title="提交日期">截至 ${escapeHTML(meta.competition.deadline)}</span>` : "";
+  return `<article class="student-project-tile ${isCurrent ? "is-current" : ""} ${archived ? "is-archived" : ""}">
+    <button class="project-card-main" type="button" data-open-project="${escapeHTML(meta.id)}">
+      <span class="student-project-cover">
+        <i class="cover-grid"></i><i class="cover-orb cover-orb-one"></i><i class="cover-orb cover-orb-two"></i>
+        <span class="project-status"><i></i>${escapeHTML(meta.phase || meta.stage)}</span>
+        ${isCurrent ? `<span class="active-project-ribbon">当前项目</span>` : ""}
+        <span class="project-cover-mark">P</span>
+        <span class="project-cover-progress"><b style="width:${readiness.score}%"></b></span>
+      </span>
+      <span class="student-project-body">
+        <span class="project-title-row"><strong>${escapeHTML(meta.name)}</strong><i>→</i></span>
+        <small>${escapeHTML(meta.description)}</small>
+        <span class="student-project-priority"><b>当前优先</b>${escapeHTML(meta.priorityTask || "尚未设置")}</span>
+        <span class="student-project-tags"><em>${readiness.done}/8 节点</em><em>${(snapshot.personas || []).length} Persona</em><em>${runCount} 轮验证</em></span>
+        ${(competition || deadline) ? `<span class="project-competition-meta">${competition}${deadline}</span>` : ""}
+        <span class="student-project-footer"><span>资料 ${(snapshot.materials || []).length} · 报告 ${(snapshot.reports || []).length}</span><time>${formatRelativeTime(meta.updatedAt || snapshot.updatedAt)}</time></span>
+      </span>
+    </button>
+    <div class="project-card-actions">
+      ${archived
+        ? `<button type="button" data-project-restore="${escapeHTML(meta.id)}">恢复项目</button><button class="danger" type="button" data-project-delete="${escapeHTML(meta.id)}">永久删除</button>`
+        : `<button type="button" data-project-edit="${escapeHTML(meta.id)}">编辑</button><button type="button" data-project-duplicate="${escapeHTML(meta.id)}">复制</button><button type="button" data-project-archive="${escapeHTML(meta.id)}">归档</button>`}
+    </div>
+  </article>`;
+}
+
 function renderWorkspace() {
+  const activeProjects = projectLibrary.filter(item => !item.project.archived);
+  const archivedProjects = projectLibrary.filter(item => item.project.archived);
+  const hasCurrent = hasSavedProject(state) && !state.project.archived;
   const runCount = state.sparkRuns.length + state.mirrorRuns.length;
   const readiness = window.studentWorkbench.readiness();
   const latest = [...state.sparkRuns.map(r => ({ ...r, kind: "Spark", icon: "✦" })), ...state.mirrorRuns.map(r => ({ ...r, kind: "Mirror", icon: "◫" }))]
     .sort((a,b) => b.createdAt - a.createdAt).slice(0,4);
   return `
     <div class="page-heading workspace-heading">
-      <div><p class="eyebrow">STUDENT WORKSPACE</p><h1>我的科创项目</h1><p>每个项目用一张卡片呈现进度、资产和下一步；打开卡片继续验证与打磨。</p></div>
+      <div><p class="eyebrow">STUDENT WORKSPACE</p><h1>科创项目中心</h1><p>按项目管理需求、原型、验证证据和比赛材料；每个项目的数据彼此独立保存。</p></div>
       <div class="heading-actions"><button class="button button-primary" data-action="enter-empty">＋ 新建项目</button></div>
     </div>
-    ${state.project.name === "未命名项目" ? onboardingHTML() : ""}
-    <div class="section-title project-list-title"><div><h2>最近项目</h2><p>按最近更新时间展示</p></div><span class="tag tag-blue">独立学生版</span></div>
+    ${!activeProjects.length ? onboardingHTML() : ""}
+    <div class="section-title project-list-title"><div><h2>进行中项目</h2><p>${activeProjects.length ? "按最近更新时间展示" : "创建第一个项目后，进度和验证资产会集中显示在这里"}</p></div><span class="tag tag-blue">${activeProjects.length} 个项目</span></div>
     <section class="student-project-gallery">
-      <button class="student-project-tile" data-go="student">
-        <span class="student-project-cover">
-          <i class="cover-grid"></i><i class="cover-orb cover-orb-one"></i><i class="cover-orb cover-orb-two"></i>
-          <span class="project-status"><i></i>${escapeHTML(state.project.stage)}</span>
-          <span class="project-cover-mark">P</span>
-          <span class="project-cover-progress"><b style="width:${readiness.score}%"></b></span>
-        </span>
-        <span class="student-project-body">
-          <span class="project-title-row"><strong>${escapeHTML(state.project.name)}</strong><i>→</i></span>
-          <small>${escapeHTML(state.project.description)}</small>
-          <span class="student-project-tags"><em>${readiness.done}/8 节点</em><em>${state.personas.length} Persona</em><em>${runCount} 轮验证</em></span>
-          <span class="student-project-footer"><span>资料 ${state.materials.length} · 报告 ${state.reports.length}</span><time>${formatRelativeTime(state.updatedAt)}</time></span>
-        </span>
-      </button>
-      <button class="student-new-project-card" data-action="enter-empty"><span>＋</span><strong>新建一个科创项目</strong><small>从校园场景、已有原型或竞赛选题开始</small></button>
+      ${activeProjects.map(item => projectCardHTML(item)).join("")}
+      <button class="student-new-project-card" data-action="enter-empty"><span>＋</span><strong>新建一个科创项目</strong><small>从一个想法、已有原型或正在准备的比赛项目开始</small></button>
     </section>
+    ${archivedProjects.length ? `<details class="archived-projects"><summary>已归档项目 <span>${archivedProjects.length}</span></summary><section class="student-project-gallery archived-grid">${archivedProjects.map(item => projectCardHTML(item, true)).join("")}</section></details>` : ""}
+    ${hasCurrent ? `
     <div class="grid grid-4">
-      ${metric("◇", `${readiness.score}%`, "赛前打磨进度", "purple")}
+      ${metric("◇", `${readiness.score}%`, "验证闭环进度", "purple")}
       ${metric("◎", String(state.personas.length), "可用 Persona", "orange")}
       ${metric("▤", String(state.materials.length), "需求资料", "blue")}
       ${metric("▥", String(state.reports.length), "已生成报告", "green")}
     </div>
-    <div class="section-title"><h2>项目推进建议</h2><button class="link-button" data-open-modal="project">编辑项目信息 →</button></div>
+    <div class="section-title"><h2>当前项目推进建议</h2><button class="link-button" data-open-modal="project">编辑项目信息 →</button></div>
     <div class="grid grid-main guidance-grid">
       <article class="card card-pad project-guidance-card">
-        <span class="project-kicker">CURRENT MILESTONE</span>
-        <h3>${readiness.next ? readiness.next.label : "已形成完整验证闭环"}</h3>
-        <p>${readiness.next?.short || "继续保留真实测试记录和每一轮由证据触发的改动。"}</p>
+        <span class="project-kicker">CURRENT PRIORITY</span>
+        <h3>${escapeHTML(state.project.priorityTask || readiness.next?.label || "补充项目信息")}</h3>
+        <p>${state.project.priorityTask ? `这是创建项目时指定的当前优先任务。完成后可以编辑项目，重新调整任务顺序。` : readiness.next?.short || "继续保留真实测试记录和每一轮由证据触发的改动。"}</p>
         <div class="project-progress"><div class="progress-label"><span>验证闭环完成度</span><strong>${readiness.score}%</strong></div><div class="progress-bar"><span style="width:${readiness.score}%"></span></div></div>
         <button class="button button-primary button-sm" data-go="student">进入科创工作台 →</button>
       </article>
@@ -240,7 +385,7 @@ function renderWorkspace() {
     <div class="section-title"><h2>最近活动</h2><button class="link-button" data-go="reports">查看全部 →</button></div>
     <article class="card card-pad">
       ${latest.length ? `<div class="activity-list">${latest.map(r => `<div class="activity"><span class="activity-icon">${r.icon}</span><div><strong>${escapeHTML(r.title)}</strong><small>${r.kind} · 已生成对应验证报告</small></div><time>${formatRelativeTime(r.createdAt)}</time></div>`).join("")}</div>` : `<div style="text-align:center;padding:28px;color:var(--muted);font-size:11px">还没有验证记录。完成一次 Spark 或 Mirror 后，活动会出现在这里。</div>`}
-    </article>`;
+    </article>` : `<article class="card card-pad no-current-project"><strong>先创建或打开一个项目</strong><p>项目中心会保留多个项目、验证记录和比赛准备状态，不会再用新项目覆盖旧项目。</p><button class="button button-primary" data-action="enter-empty">创建科创项目</button></article>`}`;
 }
 
 function onboardingHTML() {
@@ -272,7 +417,7 @@ function renderSpark() {
         <div class="panel-head"><h2>设置本轮需求探索</h2><span class="tag tag-gray">约 1 分钟</span></div>
         <div class="panel-body">
           <div class="form-group"><label class="form-label" for="spark-title">产品 / 想法名称</label><input class="input" id="spark-title" name="title" value="${escapeHTML(state.project.name === "未命名项目" ? "" : state.project.name)}" placeholder="例如：校园 AI 学习助手" required></div>
-          <div class="form-group"><label class="form-label" for="spark-direction">这轮想验证什么？</label><textarea class="textarea" id="spark-direction" name="direction" required placeholder="描述目标用户、场景、当前替代方案与希望验证的问题">${escapeHTML(currentSparkResult?.direction ?? (state.isSample ? "大学生遇到临时作业时需要重排计划。想验证先解释冲突、再给出调整建议能否缩短重排时间。" : ""))}</textarea></div>
+          <div class="form-group"><label class="form-label" for="spark-direction">这轮想验证什么？</label><textarea class="textarea" id="spark-direction" name="direction" required placeholder="描述目标用户、场景、当前替代方案与希望验证的问题">${escapeHTML(currentSparkResult?.direction ?? (state.isSample ? "学生遇到临时任务时需要重排计划。想验证先解释冲突、再给出调整建议能否缩短重排时间。" : ""))}</textarea></div>
           <div class="form-group"><span class="form-label">信息范围</span><div class="choice-grid">
              <span class="choice"><input id="source-own" type="checkbox" name="sources" value="用户资料" checked><label for="source-own"><span class="choice-mark">✓</span><span><strong>我的需求资料库</strong><small>保存最近录入的片段和来源</small></span></label></span>
              <span class="choice"><input id="source-web" type="checkbox" name="sources" value="公开资料" checked><label for="source-web"><span class="choice-mark">✓</span><span><strong>公开资料方向</strong><small>添加一条待检索记录</small></span></label></span>
@@ -511,6 +656,12 @@ function renderReports() {
 function bindPageEvents() {
   document.querySelectorAll("[data-go]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.go)));
   document.querySelectorAll("[data-open-modal]").forEach(el => el.addEventListener("click", () => openModal(el.dataset.openModal)));
+  document.querySelectorAll("[data-open-project]").forEach(el => el.addEventListener("click", () => openProject(el.dataset.openProject)));
+  document.querySelectorAll("[data-project-edit]").forEach(el => el.addEventListener("click", () => editProject(el.dataset.projectEdit)));
+  document.querySelectorAll("[data-project-duplicate]").forEach(el => el.addEventListener("click", () => duplicateProject(el.dataset.projectDuplicate)));
+  document.querySelectorAll("[data-project-archive]").forEach(el => el.addEventListener("click", () => archiveProject(el.dataset.projectArchive)));
+  document.querySelectorAll("[data-project-restore]").forEach(el => el.addEventListener("click", () => restoreProject(el.dataset.projectRestore)));
+  document.querySelectorAll("[data-project-delete]").forEach(el => el.addEventListener("click", () => deleteProject(el.dataset.projectDelete)));
   document.querySelector("#spark-form")?.addEventListener("submit", e => { e.preventDefault(); runSpark(e.currentTarget); });
   document.querySelector("#mirror-form")?.addEventListener("submit", e => { e.preventDefault(); runMirror(e.currentTarget); });
   const studentForm = document.querySelector("#student-form");
@@ -524,6 +675,93 @@ function bindPageEvents() {
   bindResultTabs();
 }
 
+function switchToStoredProject(snapshot) {
+  state = normalizeStoredState(snapshot);
+  currentSparkResult = state.sparkRuns[0] || null;
+  currentMirrorResult = state.mirrorRuns[0] || null;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function openProject(id, destination = "student") {
+  const snapshot = projectLibrary.find(item => item.project.id === id);
+  if (!snapshot) return showToast("没有找到这个项目");
+  if (snapshot.project.archived) return showToast("请先恢复已归档项目");
+  switchToStoredProject(snapshot);
+  navigate(destination);
+}
+
+function editProject(id) {
+  const snapshot = projectLibrary.find(item => item.project.id === id);
+  if (!snapshot || snapshot.project.archived) return;
+  switchToStoredProject(snapshot);
+  navigate("workspace");
+  setTimeout(() => openProjectWizard(true), 0);
+}
+
+function duplicateProject(id) {
+  const source = projectLibrary.find(item => item.project.id === id);
+  if (!source) return;
+  const copy = snapshotState(normalizeStoredState(source));
+  const now = Date.now();
+  copy.project = {
+    ...copy.project,
+    id: createProjectId(),
+    name: `${copy.project.name}（副本）`,
+    archived: false,
+    createdAt: now,
+    updatedAt: now
+  };
+  copy.updatedAt = now;
+  projectLibrary.unshift(copy);
+  saveProjectLibrary();
+  renderPage();
+  showToast("项目副本已创建");
+}
+
+function selectFallbackProject(excludedId = "") {
+  const fallback = projectLibrary.find(item => !item.project.archived && item.project.id !== excludedId);
+  state = fallback ? normalizeStoredState(fallback) : initialState();
+  currentSparkResult = state.sparkRuns[0] || null;
+  currentMirrorResult = state.mirrorRuns[0] || null;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function archiveProject(id) {
+  const index = projectLibrary.findIndex(item => item.project.id === id);
+  if (index < 0 || !confirm(`归档“${projectLibrary[index].project.name}”？之后可以在已归档项目中恢复。`)) return;
+  projectLibrary[index].project.archived = true;
+  projectLibrary[index].project.updatedAt = Date.now();
+  saveProjectLibrary();
+  if (state.project.id === id) selectFallbackProject(id);
+  renderPage();
+  syncResumeButton();
+  showToast("项目已归档");
+}
+
+function restoreProject(id) {
+  const project = projectLibrary.find(item => item.project.id === id);
+  if (!project) return;
+  project.project.archived = false;
+  project.project.updatedAt = Date.now();
+  project.updatedAt = Date.now();
+  projectLibrary.sort((a, b) => (b.project.updatedAt || 0) - (a.project.updatedAt || 0));
+  saveProjectLibrary();
+  renderPage();
+  syncResumeButton();
+  showToast("项目已恢复");
+}
+
+function deleteProject(id) {
+  const project = projectLibrary.find(item => item.project.id === id);
+  if (!project || !confirm(`永久删除“${project.project.name}”及其全部本地记录？这个操作无法撤回。`)) return;
+  projectLibrary = projectLibrary.filter(item => item.project.id !== id);
+  saveProjectLibrary();
+  if (state.project.id === id) selectFallbackProject(id);
+  renderPage();
+  syncResumeButton();
+  showToast("项目已永久删除");
+}
+
 function bindResultTabs() {
   document.querySelectorAll("[data-spark-tab]").forEach(el => el.addEventListener("click", () => {
     document.querySelectorAll("[data-spark-tab]").forEach(x=>x.classList.remove("active")); el.classList.add("active");
@@ -535,7 +773,140 @@ function bindResultTabs() {
   }));
 }
 
+function suggestedTaskForStage(stage) {
+  return ({
+    "只有初步想法": "寻找真实场景和痛点",
+    "已确定项目方向": "梳理产品需求",
+    "已有产品原型": "完善产品原型",
+    "正在进行用户验证": "开展用户验证",
+    "正在准备比赛材料": "整理比赛材料"
+  })[stage] || projectTasks[0];
+}
+
+function openProjectWizard(editing = false) {
+  const root = document.querySelector("#modal-root");
+  const meta = editing ? state.project : createProjectMeta();
+  let lastSuggestedTask = suggestedTaskForStage(meta.phase);
+  const selectedTasks = meta.tasks?.length ? meta.tasks : [lastSuggestedTask];
+  const priorityTask = selectedTasks.includes(meta.priorityTask) ? meta.priorityTask : selectedTasks[0];
+  root.innerHTML = `<div class="modal-backdrop" data-close-modal>
+    <div class="modal project-wizard" role="dialog" aria-modal="true" aria-label="${editing ? "编辑科创项目" : "创建科创项目"}">
+      <div class="modal-head"><div><span class="wizard-kicker">PROJECT SETUP</span><h2>${editing ? "编辑科创项目" : "创建科创项目"}</h2></div><button class="modal-close" data-close-modal aria-label="关闭">×</button></div>
+      <div class="wizard-progress" aria-label="创建进度"><span class="active" data-wizard-dot="1"><b>1</b>基本信息</span><i></i><span data-wizard-dot="2"><b>2</b>比赛信息</span><i></i><span data-wizard-dot="3"><b>3</b>当前任务</span></div>
+      <form id="project-wizard-form">
+        <div class="modal-body wizard-panel" data-wizard-panel="1">
+          <div class="wizard-intro"><strong>先说明项目现在是什么状态</strong><p>后续可以随时修改，不需要一次填写完整。</p></div>
+          <div class="form-group"><label class="form-label" for="wizard-name">项目名称 <em>必填</em></label><input id="wizard-name" class="input" value="${meta.name === "未命名项目" ? "" : escapeHTML(meta.name)}" placeholder="例如：AI 辅助社区无障碍导航" required></div>
+          <div class="form-group"><label class="form-label" for="wizard-desc">一句话介绍</label><textarea id="wizard-desc" class="textarea" placeholder="说明目标用户、使用场景和希望解决的问题">${meta.name === "未命名项目" ? "" : escapeHTML(meta.description)}</textarea></div>
+          <fieldset class="wizard-fieldset"><legend>当前项目阶段 <em>必选</em></legend><div class="stage-choice-grid">${projectStages.map((stage, index) => `<label class="stage-choice"><input type="radio" name="wizard-stage" value="${escapeHTML(stage)}" ${meta.phase === stage || (!meta.phase && index === 0) ? "checked" : ""}><span><b>0${index + 1}</b><strong>${escapeHTML(stage)}</strong></span></label>`).join("")}</div></fieldset>
+        </div>
+        <div class="modal-body wizard-panel" data-wizard-panel="2" hidden>
+          <div class="wizard-intro optional"><strong>比赛信息可以暂时留空</strong><p>填写后会显示在项目卡片和提交倒计时中，不影响创建项目。</p></div>
+          <div class="form-group"><label class="form-label" for="wizard-competition">比赛名称 <span>选填</span></label><input id="wizard-competition" class="input" value="${escapeHTML(meta.competition?.name || "")}" placeholder="例如：科技创新项目挑战赛"></div>
+          <div class="grid grid-2"><div class="form-group"><label class="form-label" for="wizard-direction">参赛方向 <span>选填</span></label><input id="wizard-direction" class="input" value="${escapeHTML(meta.competition?.direction || "")}" placeholder="例如：人工智能 / 社会创新"></div><div class="form-group"><label class="form-label" for="wizard-deadline">提交日期 <span>选填</span></label><input id="wizard-deadline" class="input" type="date" value="${escapeHTML(meta.competition?.deadline || "")}"></div></div>
+        </div>
+        <div class="modal-body wizard-panel" data-wizard-panel="3" hidden>
+          <div class="wizard-intro"><strong>选择团队当前需要完成的任务</strong><p>可以多选，再指定一个最优先任务；项目中心会据此推荐下一步。</p></div>
+          <fieldset class="wizard-fieldset"><legend>当前任务 <em>至少选择一项</em></legend><div class="task-choice-grid">${projectTasks.map(task => `<label class="task-choice"><input type="checkbox" name="wizard-task" value="${escapeHTML(task)}" ${selectedTasks.includes(task) ? "checked" : ""}><span>${escapeHTML(task)}</span></label>`).join("")}</div></fieldset>
+          <div class="form-group priority-select"><label class="form-label" for="wizard-priority">当前最优先任务</label><select id="wizard-priority" class="select" data-current="${escapeHTML(priorityTask)}"></select><small>完成后可以在编辑项目中重新排序。</small></div>
+        </div>
+        <div class="modal-footer wizard-footer"><button class="button button-secondary" type="button" data-wizard-back hidden>上一步</button><span class="wizard-spacer"></span><button class="button button-secondary" type="button" data-close-modal>取消</button><button class="button button-primary" type="button" data-wizard-next>下一步</button><button class="button button-primary" type="submit" data-wizard-finish hidden>${editing ? "保存修改" : "创建项目"}</button></div>
+      </form>
+    </div>
+  </div>`;
+
+  let step = 1;
+  const form = root.querySelector("#project-wizard-form");
+  const modal = root.querySelector(".modal");
+  const back = root.querySelector("[data-wizard-back]");
+  const next = root.querySelector("[data-wizard-next]");
+  const finish = root.querySelector("[data-wizard-finish]");
+
+  function updatePriorityOptions() {
+    const selected = [...form.querySelectorAll('[name="wizard-task"]:checked')].map(input => input.value);
+    const select = form.querySelector("#wizard-priority");
+    const current = select.value || select.dataset.current;
+    select.innerHTML = selected.length
+      ? selected.map(task => `<option value="${escapeHTML(task)}" ${task === current ? "selected" : ""}>${escapeHTML(task)}</option>`).join("")
+      : `<option value="">请先选择任务</option>`;
+    select.disabled = !selected.length;
+  }
+
+  function showStep(target) {
+    step = target;
+    root.querySelectorAll("[data-wizard-panel]").forEach(panel => { panel.hidden = Number(panel.dataset.wizardPanel) !== step; });
+    root.querySelectorAll("[data-wizard-dot]").forEach(dot => dot.classList.toggle("active", Number(dot.dataset.wizardDot) <= step));
+    back.hidden = step === 1;
+    next.hidden = step === 3;
+    finish.hidden = step !== 3;
+    if (step === 3) updatePriorityOptions();
+  }
+
+  function validateStepOne() {
+    if (!form.querySelector("#wizard-name").value.trim()) return showToast("请填写项目名称"), false;
+    if (!form.querySelector('[name="wizard-stage"]:checked')) return showToast("请选择当前项目阶段"), false;
+    return true;
+  }
+
+  modal.addEventListener("click", event => event.stopPropagation());
+  root.querySelectorAll("[data-close-modal]").forEach(el => el.addEventListener("click", () => { root.innerHTML = ""; }));
+  next.addEventListener("click", () => { if (step === 1 && !validateStepOne()) return; showStep(step + 1); });
+  back.addEventListener("click", () => showStep(step - 1));
+  form.querySelectorAll('[name="wizard-task"]').forEach(input => input.addEventListener("change", updatePriorityOptions));
+  form.querySelectorAll('[name="wizard-stage"]').forEach(input => input.addEventListener("change", () => {
+    const checkedTasks = [...form.querySelectorAll('[name="wizard-task"]:checked')];
+    const nextSuggestedTask = suggestedTaskForStage(input.value);
+    if (checkedTasks.length === 1 && checkedTasks[0].value === lastSuggestedTask) {
+      checkedTasks[0].checked = false;
+      const nextTaskInput = [...form.querySelectorAll('[name="wizard-task"]')].find(taskInput => taskInput.value === nextSuggestedTask);
+      if (nextTaskInput) nextTaskInput.checked = true;
+    }
+    lastSuggestedTask = nextSuggestedTask;
+    updatePriorityOptions();
+  }));
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    if (!validateStepOne()) return showStep(1);
+    const tasks = [...form.querySelectorAll('[name="wizard-task"]:checked')].map(input => input.value);
+    if (!tasks.length) return showToast("请至少选择一项当前任务");
+    const phase = form.querySelector('[name="wizard-stage"]:checked').value;
+    const now = Date.now();
+    if (!editing) {
+      state = initialState();
+      currentSparkResult = null;
+      currentMirrorResult = null;
+    }
+    state.project = {
+      ...state.project,
+      id: editing ? state.project.id : createProjectId(),
+      name: form.querySelector("#wizard-name").value.trim(),
+      description: form.querySelector("#wizard-desc").value.trim() || "尚未填写项目说明",
+      stage: phase,
+      phase,
+      tasks,
+      priorityTask: form.querySelector("#wizard-priority").value || tasks[0],
+      competition: {
+        name: form.querySelector("#wizard-competition").value.trim(),
+        direction: form.querySelector("#wizard-direction").value.trim(),
+        deadline: form.querySelector("#wizard-deadline").value
+      },
+      archived: false,
+      createdAt: editing ? state.project.createdAt : now,
+      updatedAt: now,
+      progress: Math.max(Number(state.project.progress || 0), [10, 22, 38, 58, 76][projectStages.indexOf(phase)] || 10)
+    };
+    state.activePage = "workspace";
+    saveState();
+    root.innerHTML = "";
+    navigate("workspace");
+    showToast(editing ? "项目信息已更新" : "科创项目已创建");
+  });
+  updatePriorityOptions();
+  form.querySelector("#wizard-name")?.focus();
+}
+
 function openModal(type) {
+  if (type === "project") return openProjectWizard(true);
   const root = document.querySelector("#modal-root");
   const configs = {
     project: { title:state.project.name === "未命名项目" ? "创建第一个验证项目" : "编辑项目", body:`<div class="callout callout-info" style="margin-bottom:16px"><strong>只需先说明方向：</strong>后续可以在 Spark 中继续澄清需求，或直接在 Mirror 中上传已有材料。</div><div class="form-group"><label class="form-label" for="modal-name">项目名称</label><input id="modal-name" class="input" value="${state.project.name === "未命名项目" ? "" : escapeHTML(state.project.name)}" placeholder="例如：校园 AI 学习助手"></div><div class="form-group"><label class="form-label" for="modal-desc">一句话说明</label><textarea id="modal-desc" class="textarea" placeholder="目标用户、场景和希望解决的问题">${state.project.name === "未命名项目" ? "" : escapeHTML(state.project.description)}</textarea></div>`, save:state.project.name === "未命名项目" ? "创建项目" : "保存项目" },
@@ -605,9 +976,18 @@ document.addEventListener("click", e => {
   if (action === "enter-sample") enterDemo("sample");
   if (action === "enter-empty") enterDemo("blank");
   if (action === "resume-demo") enterDemo("resume");
+  if (action === "show-landing") showLanding();
   if (action === "toggle-menu") document.querySelector(".sidebar").classList.toggle("open");
   if (action === "reset-demo") {
-    if (confirm("确定重置全部本地演示数据吗？这个操作无法撤回。")) { state=sampleState();currentSparkResult=null;currentMirrorResult=null;saveState();navigate("workspace");showToast("演示数据已重置"); }
+    if (confirm(`重置“${state.project.name}”的资料、Persona 和验证记录？其他项目不会受到影响。`)) {
+      const meta = { ...state.project, progress: 0, updatedAt: Date.now() };
+      state = initialState(meta);
+      currentSparkResult = null;
+      currentMirrorResult = null;
+      saveState();
+      navigate("workspace");
+      showToast("当前项目记录已重置");
+    }
   }
   if (action === "show-help") showToast("建议按“项目蓝图 → Persona 痛点 → Spark → Mirror → 验证冲刺 → 提交中心”的顺序体验");
 });
@@ -618,5 +998,7 @@ document.addEventListener("keydown", event => {
 
 document.querySelectorAll("[data-nav]").forEach(el => el.addEventListener("click", e => { e.preventDefault(); navigate(el.dataset.nav); }));
 syncResumeButton();
-
+if (localStorage.getItem(VISITED_KEY) === "1" && projectLibrary.some(item => !item.project.archived)) {
+  enterDemo("resume");
+}
 

@@ -160,7 +160,7 @@ function getEvidenceLedger(project = getStudentProject()) {
     id: run.id,
     title: `${run.title} · ${run.task}`,
     type: "原型预演",
-    status: `${run.scoredCount}/8 维示例分`,
+    status: Array.isArray(run.coverage) ? "待真人验证的测试计划" : "历史演示记录",
     tone: "green"
   }));
   const resultRows = project.testResult ? [{
@@ -326,6 +326,7 @@ function renderStudentField(field, project) {
 
 function renderValidationView(project) {
   const validationFields = studentFields.filter(field => validationFieldKeys.includes(field.key));
+  const mirrorPlan = state.mirrorRuns.find(run => run.id === state.mirrorValidationRunId);
   const hasPlan = Boolean(project.hypothesis && project.successMetric && project.testTask && project.testPlan);
   const hasResult = Boolean(project.testResult);
   const hasIteration = Boolean(project.iterationPlan);
@@ -341,6 +342,18 @@ function renderValidationView(project) {
           <span class="boundary-icon">i</span>
           <div><strong>只把真实参与者完成任务后的记录写入“验证结果”</strong><p>Spark 和 Mirror 用于发现问题与完善测试，不替代真人观察。</p></div>
         </div>
+        ${mirrorPlan ? `<section class="linked-mirror-plan">
+          <div class="student-card-head">
+            <div><h2 tabindex="-1">已关联的 Mirror 测试计划</h2><p>${escapeHTML(mirrorPlan.title)} · ${escapeHTML(formatRelativeTime(mirrorPlan.createdAt))}</p></div>
+            <button class="link-button" type="button" data-view-report="${escapeHTML(mirrorPlan.id)}">查看原预演</button>
+          </div>
+          <p class="linked-mirror-task">${escapeHTML(mirrorPlan.task)}</p>
+          ${renderRunParticipants(mirrorPlan.personas)}
+          <details><summary>展开测试计划</summary>${renderMirrorTestPlan(mirrorPlan)}
+            ${mirrorPlan.personaChecks?.length ? `<h3>按人群观察</h3>
+            <ul>${mirrorPlan.personaChecks.map(check => `<li><strong>${escapeHTML(check.name)}</strong> ${escapeHTML(check.observe)}</li>`).join("")}</ul>` : ""}
+          </details>
+        </section>` : ""}
         <form id="student-validation-form" class="student-form-grid">
           <div class="canvas-section-title"><span>01</span><div><strong>预先定义</strong><small>测试开始前写好，不根据结果临时更换标准</small></div></div>
           ${validationFields.slice(0, 4).map(field => renderStudentField(field, project)).join("")}
@@ -526,6 +539,8 @@ function exportStudentProject() {
   const legacyPersonaNote = legacyPersonas.length ? `\n\n旧版项目重点人群：${legacyPersonas.map(item => item.name).join("、")}。` : "";
   const ledger = getEvidenceLedger(project).map(item => `- [${item.type}] ${item.title}（${item.status}，记录 ID ${item.id}）`).join("\n") || "尚无记录。";
   const reports = latestStudentReports().map(({ kind, report }) => report ? `- ${kind}：${report.title}（报告 ID ${report.id}）。${report.desc}` : `- ${kind}：尚未运行。`).join("\n");
+  const linkedMirrorPlan = state.mirrorRuns.find(run => run.id === state.mirrorValidationRunId);
+  const mirrorSource = linkedMirrorPlan ? `关联的 Mirror 测试计划：${linkedMirrorPlan.title}（记录 ID ${linkedMirrorPlan.id}）\n\n` : "";
   const body = `# ${state.project.name} · PersonaLab 科创项目打磨记录
 
 > PersonaLab V2.0-student · ${state.isSample ? "当前为内置演练案例。" : "当前为用户本地项目。"} Persona 和规则推演用于发现问题，真实结论需要可追溯资料与真人测试支持。
@@ -542,7 +557,7 @@ ${fields}
 
 ## 真人验证计划、结果与迭代
 
-${validation}
+${mirrorSource}${validation}
 
 ## 核心需求来源
 

@@ -167,22 +167,11 @@ function normalizeSparkRun(run) {
 }
 
 function normalizeMirrorRun(run) {
-  const scores = (run.scores || []).map(item=>({ ...item, reason:item.reason || "" }));
-  const scored = scores.filter(item=>item.score !== null && item.score !== undefined);
   return {
     ...run,
     personas: run.personas || [],
-    scores,
-    rawTotal: run.rawTotal ?? scored.reduce((sum,item)=>sum+item.score,0),
-    scoredMax: run.scoredMax ?? scored.reduce((sum,item)=>sum+item.max,0),
-    scoredCount: run.scoredCount ?? scored.length,
-    unscoredCount: run.unscoredCount ?? Math.max(0, scores.length - scored.length),
-    path: run.path || [
-      { text:"进入产品并寻找核心任务入口", status:"已完成" },
-      { text:run.task || "完成核心任务", status:"已完成" },
-      { text:"查看系统反馈与推荐依据", status:"出现阻塞" },
-      { text:"确认结果并检查撤回方式", status:"出现阻塞" }
-    ]
+    scores: run.scores || [],
+    path: run.path || []
   };
 }
 
@@ -585,14 +574,14 @@ function renderMirror() {
   return `
     <div class="page-heading"><div><p class="eyebrow" style="color:var(--green)">MIRROR / 预演</p><h1>把原型改进点变成测试任务</h1><p>写下原型的关键步骤，记录要让目标用户完成的动作，演练答辩时的操作路径。</p></div><span class="tag tag-green">原型预演</span></div>
     ${renderLabProject()}
-    <div class="callout callout-info" style="margin-bottom:16px">Mirror 会根据操作步骤整理走查清单。链接和附件名随记录保存，评分演示依据填写的文字。</div>
+    <div class="callout callout-info" style="margin-bottom:16px">Mirror 把你填写的步骤整理成测试计划，并按所选人群给出观察点。文字线索可用于准备测试，界面表现需要现场走查。</div>
     <div class="lab-layout">
       <form id="mirror-form" class="card lab-panel">
-        <div class="panel-head"><h2>配置本轮体验预演</h2><span class="tag tag-gray">八维 · 100分</span></div>
+        <div class="panel-head"><h2>配置本轮原型预演</h2></div>
         <div class="panel-body">
           <div class="form-group"><label class="form-label" for="mirror-task">希望用户完成什么任务？ <small>必填</small></label><textarea class="textarea" id="mirror-task" name="task" rows="2" required placeholder="例如：从首页找到电梯并确认无障碍路线。">${escapeHTML(task)}</textarea></div>
           <div class="form-group"><label class="form-label" for="mirror-success">怎样算完成任务？ <small>必填</small></label><textarea class="textarea" id="mirror-success" name="successCriteria" rows="2" required placeholder="例如：用户能确认电梯位置，并说出抵达二层的路线。">${escapeHTML(successCriteria)}</textarea></div>
-          <div class="form-group"><label class="form-label" for="mirror-link">原型的操作步骤 <small>必填</small></label><textarea class="textarea" id="mirror-link" name="material" required placeholder="从哪个页面开始？用户要点什么？系统会显示什么反馈？">${escapeHTML(description)}</textarea></div>
+          <div class="form-group"><label class="form-label" for="mirror-link">原型的操作步骤 <small>必填</small></label><textarea class="textarea" id="mirror-link" name="material" required aria-describedby="mirror-steps-hint" placeholder="从哪个页面开始？用户要点什么？系统会显示什么反馈？">${escapeHTML(description)}</textarea><p class="hint" id="mirror-steps-hint">每行写一个动作。Mirror 会按顺序整理成走查清单。</p></div>
           ${personaPicker("mirror", currentMirrorResult)}
           <details class="lab-optional">
             <summary>添加原型链接或附件 <small>选填</small></summary>
@@ -612,19 +601,76 @@ function mirrorEmptyHTML() {
   return `<div class="empty-state"><div><div class="empty-illustration" style="color:var(--green);background:var(--green-soft)">◫</div><h3>等待开始体验预演</h3><p>填写任务、完成标准和原型的操作步骤，再勾选要测试的人群。</p></div></div>`;
 }
 
-const scoreMeta = [
-  ["任务清晰度",15,12,"flow"],["信息架构与可寻找性",15,11,"structure"],["交互一致性",15,12,"visual"],["系统反馈",10,7,"feedback"],
-  ["认知负荷",10,7,"visual"],["错误预防与恢复",10,6,"recovery"],["信任与隐私",10,8,"trust"],["Persona适配与无障碍",15,10,"visual"]
+const mirrorDimensions = [
+  ["任务清晰度", [/点击|进入|打开|选择|输入|添加|填写|导航/, /提交|完成|确认|保存|生成|到达|显示/], "明确用户要做的动作和任务结束状态"],
+  ["信息架构与可寻找性", [/首页|菜单|清单|列表|页面|入口|导航/, /进入|打开|找到|选择|跳转/], "补充任务的起始页面和入口位置"],
+  ["交互一致性", [], "对照多个页面的按钮名称、位置和操作方式"],
+  ["系统反馈", [/显示|提示|反馈/, /成功|失败|错误|进度|状态|结果|原因|理由/], "说明系统怎样提示成功、失败或进度变化"],
+  ["认知负荷", [], "观察参与者在哪一步犹豫、回看或需要解释"],
+  ["错误预防与恢复", [/撤回|撤销|重试|恢复|返回修改/], "确认误操作后能否返回、修改或重试"],
+  ["信任与隐私", [/权限|授权|个人信息|个人数据|定位/, /用途|范围|同意|拒绝|删除/], "涉及个人信息时，说明数据用途和拒绝方式"],
+  ["Persona 适配与无障碍", [], "让所选人群用日常设备和辅助方式完成任务"]
 ];
 
+function mirrorCoverage(description) {
+  return mirrorDimensions.map(([name, signals, followUp]) => {
+    const status = signals.length === 0
+      ? "需现场查看"
+      : signals.every(signal => signal.test(description)) ? "有文字线索" : "待补充线索";
+    return { name, status, followUp };
+  });
+}
+
+function prototypeSteps(description) {
+  return description.split(/\r?\n|[。；;]|→/)
+    .map(step => step.trim().replace(/^(?:[-*•]\s+|\d+[.、)）]\s*)/, ""))
+    .filter(Boolean);
+}
+
+function mirrorReferenceURL(value) {
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
 function mirrorResultHTML(result) {
-  const partial = result.unscoredCount > 0;
-  const ringValue = partial ? Math.round(result.scoredCount / result.scores.length * 100) : result.total;
+  const hasCoverage = Array.isArray(result.coverage);
+  const reference = mirrorReferenceURL(result.reference);
+  const linkedToValidation = state.mirrorValidationRunId === result.id;
   return `<div class="result-shell">
-    <div class="score-hero"><div class="score-ring ${partial ? "partial" : ""}" style="--score:${ringValue}"><div class="score-number"><strong>${partial ? "—" : result.total}</strong><small>${partial ? `${result.unscoredCount} 项暂不评分` : "/ 100"}</small></div></div><div><span class="tag tag-green">示例分 · ${result.scoredCount}/8 维</span><h2>${escapeHTML(result.title)}</h2><p>${escapeHTML(result.task)} · ${result.personas.length} 类人群参与预演 · ${escapeHTML(result.materialType)}</p>${renderRunParticipants(result.personas)}${result.scoredCount ? `<p class="score-coverage">已展示维度示例分 ${result.rawTotal}/${result.scoredMax}，其余维度待验证。</p>` : `<p class="score-coverage">补充具体流程描述后可查看部分维度的示例分。</p>`}</div></div>
-    <div class="result-tabs"><button class="result-tab active" data-mirror-tab="issues">待检查问题</button><button class="result-tab" data-mirror-tab="scores">八维示例评分</button><button class="result-tab" data-mirror-tab="path">测试步骤</button></div>
-    <div id="mirror-result-body" class="result-body">${mirrorTabHTML(result,"issues")}</div>
+    <header class="result-summary mirror-plan-header">
+      <p class="eyebrow">MIRROR · 原型预演</p>
+      <h2>${escapeHTML(result.title)}</h2>
+      <p>${escapeHTML(result.task)}</p>
+      ${renderRunParticipants(result.personas)}
+      ${reference ? `<a class="mirror-reference" href="${escapeHTML(reference)}" target="_blank" rel="noopener noreferrer">打开原型链接 ↗</a>` : ""}
+    </header>
+    <div class="mirror-plan-actions">
+      <button class="button button-primary" type="button" data-action="use-mirror-plan" data-mirror-run="${escapeHTML(result.id)}">${linkedToValidation ? "前往验证冲刺" : "用于真人验证"}</button>
+      <button class="button button-secondary" type="button" data-action="export-mirror-plan" data-mirror-run="${escapeHTML(result.id)}">导出测试计划</button>
+    </div>
+    <div class="result-tabs">
+      <button class="result-tab active" type="button" data-mirror-tab="path" aria-pressed="true">测试计划</button>
+      <button class="result-tab" type="button" data-mirror-tab="issues" aria-pressed="false">人群观察点</button>
+      <button class="result-tab" type="button" data-mirror-tab="scores" aria-pressed="false">${hasCoverage ? "检查范围" : "历史示例评分"}</button>
+    </div>
+    <div id="mirror-result-body" class="result-body">${mirrorTabHTML(result, "path")}</div>
   </div>`;
+}
+
+function renderMirrorTestPlan(result) {
+  const steps = result.path || [];
+  return `<section class="mirror-test-plan">
+    ${result.successCriteria ? `<div class="mirror-criterion"><h3>完成标准</h3><p>${escapeHTML(result.successCriteria)}</p></div>` : ""}
+    <h3>按原型步骤走查</h3>
+    ${steps.length ? `<ol class="mirror-test-steps">${steps.map(step => `<li>${escapeHTML(step.text)}</li>`).join("")}</ol>`
+      : "<p>这条历史记录没有保存走查步骤。</p>"}
+    <h3>真人测试时记录</h3>
+    <p>用相同起点和任务说明。观察参与者是否达到完成标准，记录耗时、卡住的位置、求助或出错，以及如何恢复。</p>
+  </section>`;
 }
 
 function mirrorTabHTML(result, tab) {
@@ -638,8 +684,19 @@ function mirrorTabHTML(result, tab) {
       <h3>本轮人群观察点</h3><div class="insight-list">${checks}</div>
     </section>` : ""}<div class="issue-list">${result.issues.map((issue,i)=>`<article class="issue-card"><span class="issue-index">${i+1}</span><div><h4>${escapeHTML(issue.title)}</h4><p>${escapeHTML(issue.detail)}</p><div class="issue-meta"><span class="tag ${issue.level === "高" ? "tag-red" : "tag-orange"}">${issue.level}优先级</span><span class="tag tag-gray">${escapeHTML(issue.dimension)}</span></div></div></article>`).join("")}</div>`;
   }
-  if (tab === "scores") return `<div class="score-bars">${result.scores.map(s=>`<div class="score-item"><div class="score-row ${s.score === null ? "unscored" : ""}"><label>${escapeHTML(s.name)}</label><div class="progress-bar"><span style="width:${s.score === null ? 0 : Math.round(s.score/s.max*100)}%"></span></div><strong>${s.score === null ? "暂不评分" : `${s.score}/${s.max}`}</strong></div>${s.score === null ? `<small class="score-note">${escapeHTML(s.reason)}</small>` : ""}</div>`).join("")}</div><div class="callout callout-warning" style="margin-top:18px">固定示例分用于展示评分表的读法。真实得分需要在任务测试后依据观察记录评定。</div>`;
-  return `<div class="insight-list">${result.path.map((step,i)=>`<article class="insight"><div class="insight-top"><h4>步骤 ${i+1} · ${escapeHTML(step.text)}</h4><span class="tag ${step.status === "出现阻塞" ? "tag-red" : step.status === "待观察" ? "tag-gray" : "tag-green"}">${escapeHTML(step.status)}</span></div></article>`).join("")}</div>`;
+  if (tab === "scores" && Array.isArray(result.coverage)) {
+    return `<div class="insight-list">${result.coverage.map(item => `<article class="insight">
+      <div class="insight-top"><h4>${escapeHTML(item.name)}</h4><span class="tag tag-gray">${escapeHTML(item.status)}</span></div>
+      <p>${escapeHTML(item.followUp)}</p>
+    </article>`).join("")}</div>`;
+  }
+  if (tab === "scores") {
+    return `<p>旧版预演使用固定数字演示评分表。</p><div class="insight-list">${result.scores.map(score => `<article class="insight">
+      <div class="insight-top"><h4>${escapeHTML(score.name)}</h4><span class="tag tag-gray">${score.score == null ? "暂不评分" : `${score.score}/${score.max}`}</span></div>
+      ${score.reason ? `<p>${escapeHTML(score.reason)}</p>` : ""}
+    </article>`).join("") || "<p>这条历史记录没有评分明细。</p>"}</div>`;
+  }
+  return renderMirrorTestPlan(result);
 }
 
 function runMirror(form) {
@@ -663,32 +720,12 @@ function runMirror(form) {
     showToast(missing[1]);
     return;
   }
-  const hasDescription = description.length >= 20;
-  const evidenceAvailable = {
-    flow: hasDescription && /进入|打开|选择|输入|填写|导入|添加|点击/.test(description) && /提交|生成|完成|确认|保存|得到/.test(description),
-    structure: hasDescription && /首页|菜单|清单|列表|页面|入口|导航/.test(description) && /进入|打开|找到|跳转/.test(description),
-    feedback: hasDescription && /显示|提示|反馈/.test(description) && /成功|失败|错误|进度|状态|结果|原因|理由/.test(description),
-    recovery: hasDescription && /撤回|撤销|重试|恢复|返回修改/.test(description),
-    trust: hasDescription && /权限|授权|个人信息|个人数据/.test(description) && /用途|范围|同意|拒绝|删除/.test(description),
-    visual: false
-  };
-  const reasonByRequirement = {
-    flow: "补充用户的关键动作和任务结束状态",
-    structure: "补充用户从哪个页面或入口到达目标",
-    feedback: "补充系统在操作后会显示什么提示或结果",
-    recovery: "补充用户误操作后的恢复步骤",
-    visual: "需要实际查看界面，离线版只保留链接与文件名",
-    trust: "补充权限范围、数据用途或拒绝方式"
-  };
-  const scores = scoreMeta.map(([name,max,baseScore,requirement]) => ({
-    name, max, score: evidenceAvailable[requirement] ? baseScore : null,
-    reason: evidenceAvailable[requirement] ? "" : reasonByRequirement[requirement]
-  }));
-  const scored = scores.filter(item=>item.score !== null);
-  const rawTotal = scored.reduce((sum,item)=>sum+item.score,0);
-  const scoredMax = scored.reduce((sum,item)=>sum+item.max,0);
-  const unscoredCount = scores.length - scored.length;
-  const total = unscoredCount ? null : rawTotal;
+  const steps = prototypeSteps(description);
+  if (!steps.length) {
+    form.querySelector("#mirror-link").focus();
+    showToast("请输入至少一个可操作的原型步骤");
+    return;
+  }
   const issues = [
     { title:"用户能否独立找到入口并完成任务？", detail:"让目标用户从原型首页开始，记录完成时间、求助次数和停顿位置。", level:"高", dimension:"任务清晰度" },
     { title:"用户能否理解结果并处理一次错误？", detail:"设置一次输入错误或误操作，观察用户能否理解反馈、修改或撤回。", level:"高", dimension:"错误预防与恢复" },
@@ -702,21 +739,29 @@ function runMirror(form) {
     })
   }));
   const result = {
-    id:`m${Date.now()}`, title, task, successCriteria, materialType, material, reference, fileName, personas:selected, scores,total,rawTotal,scoredMax,scoredCount:scored.length,unscoredCount,issues,createdAt:Date.now(),date:"刚刚",
+    id: `m${Date.now()}`,
+    title, task, successCriteria, materialType, material, reference, fileName,
+    personas: selected,
+    coverage: mirrorCoverage(description),
+    issues,
     personaChecks,
-    path:[
-      { text:"从原型首页寻找核心任务入口", status:"待观察" },
-      { text:task, status:"待观察" },
-      { text:"描述系统反馈及其含义", status:"待观察" },
-      { text:`按完成标准核对结果：${successCriteria}`, status:"待观察" },
-      { text:"尝试恢复一次误操作", status:"待观察" }
-    ]
+    path: steps.map(text => ({ text, status: "待观察" })),
+    createdAt: Date.now(),
+    date: "刚刚"
   };
   currentMirrorResult = result;
   state.project.stage = "体验验证";
   state.project.progress = Math.max(state.project.progress,72);
   state.mirrorRuns.unshift(result);
-  state.reports.unshift({ id:result.id,kind:"Mirror",title:`${result.title} · 原型预演报告`,desc:`展示 ${result.scoredCount}/8 维示例分，附待执行的任务路径与检查点`,date:"刚刚",createdAt:result.createdAt,data:result });
+  state.reports.unshift({
+    id: result.id,
+    kind: "Mirror",
+    title: `${result.title} · 原型预演报告`,
+    desc: `${result.path.length} 个原型步骤、${selected.length} 类人群的观察点和测试计划`,
+    date: "刚刚",
+    createdAt: result.createdAt,
+    data: result
+  });
   saveState();
   document.querySelector("#mirror-result").innerHTML = mirrorResultHTML(result);
   bindResultTabs();
@@ -869,7 +914,10 @@ function bindResultTabs() {
     document.querySelector("#spark-result-body").innerHTML = sparkTabHTML(currentSparkResult, el.dataset.sparkTab);
   }));
   document.querySelectorAll("[data-mirror-tab]").forEach(el => el.addEventListener("click", () => {
-    document.querySelectorAll("[data-mirror-tab]").forEach(x=>x.classList.remove("active")); el.classList.add("active");
+    document.querySelectorAll("[data-mirror-tab]").forEach(button => {
+      button.classList.toggle("active", button === el);
+      button.setAttribute("aria-pressed", String(button === el));
+    });
     document.querySelector("#mirror-result-body").innerHTML = mirrorTabHTML(currentMirrorResult, el.dataset.mirrorTab);
   }));
 }
@@ -1084,6 +1132,21 @@ function viewReport(id) {
   showToast("已恢复这次验证结果");
 }
 
+function useMirrorPlan(id) {
+  const run = state.mirrorRuns.find(item => item.id === id);
+  if (!run) return;
+  state.mirrorValidationRunId = id;
+  const project = getStudentProject();
+  const updates = {};
+  if (run.task && !hasStudentFields(project, "testTask")) updates.testTask = run.task;
+  if (run.successCriteria && !hasStudentFields(project, "successMetric")) updates.successMetric = run.successCriteria;
+  if (Object.keys(updates).length) state.studentProject = { ...state.studentProject, ...updates };
+  studentActiveView = "validation";
+  navigate("student");
+  document.querySelector(".linked-mirror-plan h2")?.focus();
+  showToast("Mirror 测试计划已关联到验证冲刺");
+}
+
 function downloadReport(id) {
   const report = state.reports.find(r=>r.id===id);
   if (!report) return;
@@ -1098,12 +1161,19 @@ function downloadReport(id) {
   if (report.kind === "Spark") {
     body += `## 需求与机会\n\n${report.data.insights.map(i=>`- **${i.title}**（${i.level}优先级，来源类型：${i.source}）\n  ${i.detail}${i.evidenceIds?.length ? `\n  依据：${i.evidenceIds.join("、")}` : ""}`).join("\n")}\n\n## 来源记录\n\n${(report.data.evidence || []).map(item=>`- **${item.id} ${item.title}**（${item.status}）\n  ${item.quote}\n  来源：${item.source}`).join("\n") || "本轮没有可追溯资料。"}\n`;
   } else {
-    const totalLine = report.data.scoredCount === 0
-      ? "当前材料不足，8 个维度均暂不评分"
-      : report.data.total === null
-        ? `示例评分：${report.data.rawTotal}/${report.data.scoredMax}，${report.data.unscoredCount} 项暂不评分`
-        : `示例总分：${report.data.total}/100`;
-    body += `## 八维评分\n\n${totalLine}\n\n${report.data.scores.map(s=>`- ${s.name}：${s.score === null ? `暂不评分（${s.reason}）` : `${s.score}/${s.max}`}`).join("\n")}\n\n## 主要问题\n\n${report.data.issues.map(i=>`- **${i.title}**（${i.level}优先级）\n  ${i.detail}`).join("\n")}\n`;
+    const run = normalizeMirrorRun(report.data);
+    if (run.path.length) {
+      body += `## 按原型步骤走查\n\n${run.path.map((step, index) => `${index + 1}. ${step.text}`).join("\n")}\n\n`;
+    }
+    body += "## 真人测试记录项\n\n- 是否达到完成标准\n- 耗时\n- 停顿、错误或求助出现在哪一步\n- 用户如何恢复或放弃\n\n";
+    if (Array.isArray(run.coverage)) {
+      body += `## 检查范围\n\n${run.coverage.map(item => `- ${item.name}（${item.status}）\n  ${item.followUp}`).join("\n")}\n\n`;
+    } else if (run.scores.length) {
+      body += `## 历史示例评分\n\n${run.scores.map(score => `- ${score.name}：${score.score == null ? "暂不评分" : `${score.score}/${score.max}`}`).join("\n")}\n\n`;
+    }
+    if (run.issues?.length) {
+      body += `## 主要问题\n\n${run.issues.map(issue => `- **${issue.title}**\n  ${issue.detail}`).join("\n")}\n`;
+    }
     if (report.data.personaChecks?.length) {
       body += `\n## 本轮人群观察点\n\n${report.data.personaChecks.map(check =>
         `- ${check.name} · ${check.concern}\n  走查时观察 ${check.observe}`).join("\n")}\n`;
@@ -1120,6 +1190,8 @@ document.addEventListener("click", e => {
   if (action === "enter-empty") openProjectWizard();
   if (action === "resume-demo") enterDemo("resume");
   if (action === "show-landing") showLanding();
+  if (action === "use-mirror-plan") useMirrorPlan(e.target.closest("[data-mirror-run]").dataset.mirrorRun);
+  if (action === "export-mirror-plan") downloadReport(e.target.closest("[data-mirror-run]").dataset.mirrorRun);
   if (action === "toggle-menu") {
     const open = document.querySelector(".student-sidebar").classList.contains("open");
     setMenuOpen(!open, open);

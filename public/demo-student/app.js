@@ -153,7 +153,6 @@ function snapshotState(source = state) {
 
 function upsertCurrentProject() {
   if (!hasSavedProject(state)) return;
-  state.project.updatedAt = state.updatedAt;
   const next = snapshotState();
   const index = projectLibrary.findIndex(item => item.project.id === state.project.id);
   if (index >= 0) projectLibrary[index] = next;
@@ -175,9 +174,11 @@ function normalizeMirrorRun(run) {
   };
 }
 
-function saveState() {
-  state.updatedAt = Date.now();
-  state.project.updatedAt = state.updatedAt;
+function saveState({ touch = true } = {}) {
+  if (touch) {
+    state.updatedAt = Date.now();
+    state.project.updatedAt = state.updatedAt;
+  }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   upsertCurrentProject();
   syncResumeButton();
@@ -267,7 +268,7 @@ function navigate(page) {
     return;
   }
   state.activePage = page;
-  saveState();
+  saveState({ touch: false });
   document.querySelectorAll(".nav-item[data-nav]").forEach(item => {
     const active = item.dataset.nav === page;
     item.classList.toggle("active", active);
@@ -296,7 +297,7 @@ function projectCardHTML(snapshot, archived = false) {
   const competition = meta.competition?.name ? `<span title="比赛名称">${escapeHTML(meta.competition.name)}</span>` : "";
   const deadline = meta.competition?.deadline ? `<span title="提交日期">截至 ${escapeHTML(meta.competition.deadline)}</span>` : "";
   return `<article class="student-project-tile ${isCurrent ? "is-current" : ""} ${archived ? "is-archived" : ""}">
-    <button class="project-card-main" type="button" data-open-project="${escapeHTML(meta.id)}">
+    <button class="project-card-main" type="button" data-open-project="${escapeHTML(meta.id)}" aria-label="${archived ? "查看归档状态" : "进入科创工作台"} · ${escapeHTML(meta.name)}">
       <span class="student-project-cover">
         <i class="cover-grid"></i><i class="cover-orb cover-orb-one"></i><i class="cover-orb cover-orb-two"></i>
         <span class="project-status"><i></i>${escapeHTML(meta.phase || meta.stage)}</span>
@@ -313,24 +314,82 @@ function projectCardHTML(snapshot, archived = false) {
         <span class="student-project-footer"><span>资料 ${(snapshot.materials || []).length} · 报告 ${(snapshot.reports || []).length}</span><time>${formatRelativeTime(meta.updatedAt || snapshot.updatedAt)}</time></span>
       </span>
     </button>
-    <div class="project-card-actions">
-      ${archived
-        ? `<button type="button" data-project-restore="${escapeHTML(meta.id)}">恢复项目</button><button class="danger" type="button" data-project-delete="${escapeHTML(meta.id)}">永久删除</button>`
-        : `<button class="project-tool-button" type="button" data-open-project="${escapeHTML(meta.id)}" data-project-destination="spark" aria-label="打开 ${escapeHTML(meta.name)} 的 Spark">Spark</button>
-          <button class="project-tool-button" type="button" data-open-project="${escapeHTML(meta.id)}" data-project-destination="mirror" aria-label="打开 ${escapeHTML(meta.name)} 的 Mirror">Mirror</button>
-          <button type="button" data-project-edit="${escapeHTML(meta.id)}">编辑</button><button type="button" data-project-duplicate="${escapeHTML(meta.id)}">复制</button><button type="button" data-project-archive="${escapeHTML(meta.id)}">归档</button>`}
+    ${!archived ? `<div class="project-card-tools" role="group" aria-label="${escapeHTML(meta.name)} 的验证工具">
+      <button class="project-tool-button project-tool-spark" type="button" data-open-project="${escapeHTML(meta.id)}" data-project-destination="spark">
+        <span class="project-tool-symbol" aria-hidden="true">✦</span><span><strong>Spark</strong><small>需求探索</small></span>
+      </button>
+      <button class="project-tool-button project-tool-mirror" type="button" data-open-project="${escapeHTML(meta.id)}" data-project-destination="mirror">
+        <span class="project-tool-symbol" aria-hidden="true">◫</span><span><strong>Mirror</strong><small>原型预演</small></span>
+      </button>
+    </div>` : ""}
+    <div class="project-card-actions">${archived
+      ? `<button type="button" data-project-restore="${escapeHTML(meta.id)}">恢复项目</button><button class="danger" type="button" data-project-delete="${escapeHTML(meta.id)}">永久删除</button>`
+      : `<button type="button" data-project-edit="${escapeHTML(meta.id)}">编辑</button><button type="button" data-project-duplicate="${escapeHTML(meta.id)}">复制</button><button type="button" data-project-archive="${escapeHTML(meta.id)}">归档</button>`}
     </div>
   </article>`;
+}
+
+function renderWorkspaceTotals(projects) {
+  const presetIds = new Set(builtInPersonas.map(persona => persona.id));
+  let custom = 0;
+  let evidence = 0;
+  let examples = 0;
+  let reportCount = 0;
+  let spark = 0;
+  let mirror = 0;
+  for (const project of projects) {
+    custom += project.personas.filter(persona => !presetIds.has(persona.id)).length;
+    for (const material of project.materials) {
+      if (material.isSample) examples++;
+      else evidence++;
+    }
+    reportCount += project.reports.length;
+    spark += project.reports.filter(report => report.kind === "Spark").length;
+    mirror += project.reports.filter(report => report.kind === "Mirror").length;
+  }
+  const other = reportCount - spark - mirror;
+  const metrics = [
+    { label: "Persona 库", value: presetIds.size + custom, unit: "类", detail: `${presetIds.size} 类平台预设 · ${custom} 类项目自定义`, tone: "blue" },
+    { label: "证据库", value: evidence, unit: "条", detail: examples ? `项目录入资料 · 另有 ${examples} 条示例` : "各项目录入的资料", tone: "orange" },
+    { label: "已生成报告", value: reportCount, unit: "份", detail: `Spark ${spark} · Mirror ${mirror}${other ? ` · 其他 ${other}` : ""}`, tone: "blue" }
+  ];
+
+  return `<section class="workspace-section" aria-labelledby="workspace-totals-title">
+    <header class="workspace-section-heading">
+      <h2 id="workspace-totals-title">网站总览</h2>
+      <p>本浏览器内的全部项目，含已归档项目</p>
+    </header>
+    <ul class="workspace-totals">
+      ${metrics.map(metric => `<li class="card workspace-stat workspace-stat-${metric.tone}">
+        <h3>${metric.label}</h3>
+        <p class="workspace-stat-value"><strong>${metric.value}</strong><span>${metric.unit}</span></p>
+        <p class="workspace-stat-detail">${metric.detail}</p>
+      </li>`).join("")}
+    </ul>
+  </section>`;
+}
+
+function renderRecentProjects(projects) {
+  const recent = [...projects].sort((a, b) => b.project.updatedAt - a.project.updatedAt).slice(0, 5);
+  return `<section class="workspace-section" aria-labelledby="recent-projects-title">
+    <header class="workspace-section-heading">
+      <h2 id="recent-projects-title">最近项目</h2>
+      ${recent.length ? "<p>按最近更新排序</p>" : ""}
+    </header>
+    ${recent.length ? `<ul class="card recent-project-list">${recent.map(({ project, reports }) => `<li>
+      <button class="recent-project-row" type="button" data-open-project="${escapeHTML(project.id)}">
+        <span class="recent-project-name"><strong>${escapeHTML(project.name)}</strong><small>${escapeHTML(project.phase || project.stage)}</small></span>
+        <span class="recent-project-report-count">${reports.length} 份报告</span>
+        <span class="recent-project-time">${formatRelativeTime(project.updatedAt)}</span>
+        <span class="recent-project-arrow" aria-hidden="true">→</span>
+      </button>
+    </li>`).join("")}</ul>` : `<div class="card recent-project-empty">暂无进行中项目。新建或恢复项目后，可以从这里继续。</div>`}
+  </section>`;
 }
 
 function renderWorkspace() {
   const activeProjects = projectLibrary.filter(item => !item.project.archived);
   const archivedProjects = projectLibrary.filter(item => item.project.archived);
-  const hasCurrent = hasSavedProject(state) && !state.project.archived;
-  const runCount = state.sparkRuns.length + state.mirrorRuns.length;
-  const readiness = window.studentWorkbench.readiness();
-  const latest = [...state.sparkRuns.map(r => ({ ...r, kind: "Spark", icon: "✦" })), ...state.mirrorRuns.map(r => ({ ...r, kind: "Mirror", icon: "◫" }))]
-    .sort((a,b) => b.createdAt - a.createdAt).slice(0,4);
   return `
     <div class="page-heading workspace-heading">
       <div><p class="eyebrow">STUDENT WORKSPACE</p><h1>科创项目中心</h1><p>按项目管理需求、原型、验证证据和比赛材料；每个项目的数据彼此独立保存。</p></div>
@@ -342,40 +401,9 @@ function renderWorkspace() {
       ${activeProjects.map(item => projectCardHTML(item)).join("")}
       <button class="student-new-project-card" data-action="enter-empty"><span>＋</span><strong>新建一个科创项目</strong><small>从一个想法、已有原型或正在准备的比赛项目开始</small></button>
     </section>
-    ${archivedProjects.length ? `<details class="archived-projects"><summary>已归档项目 <span>${archivedProjects.length}</span></summary><section class="student-project-gallery archived-grid">${archivedProjects.map(item => projectCardHTML(item, true)).join("")}</section></details>` : ""}
-    ${hasCurrent ? `
-    <div class="grid grid-4">
-      ${metric("◇", `${readiness.score}%`, "验证闭环进度", "purple")}
-      ${metric("◎", String(state.personas.length), "可用 Persona", "orange")}
-      ${metric("▤", String(state.materials.length), "需求资料", "blue")}
-      ${metric("▥", String(state.reports.length), "已生成报告", "green")}
-    </div>
-    <div class="section-title"><h2>当前项目推进建议</h2><button class="link-button" data-open-modal="project">编辑项目信息 →</button></div>
-    <div class="grid grid-main guidance-grid">
-      <article class="card card-pad project-guidance-card">
-        <span class="project-kicker">CURRENT PRIORITY</span>
-        <h3>${escapeHTML(state.project.priorityTask || readiness.next?.label || "补充项目信息")}</h3>
-        <p>${state.project.priorityTask ? `这是创建项目时指定的当前优先任务。完成后可以编辑项目，重新调整任务顺序。` : readiness.next?.short || "继续保留真实测试记录和每一轮由证据触发的改动。"}</p>
-        <div class="project-progress"><div class="progress-label"><span>验证闭环完成度</span><strong>${readiness.score}%</strong></div><div class="progress-bar"><span style="width:${readiness.score}%"></span></div></div>
-        <button class="button button-primary button-sm" data-go="student">进入科创工作台 →</button>
-      </article>
-      <article class="card card-pad coach-card">
-        <div class="coach-card-head"><img src="./assets/personalab-xiaop.webp" alt="" /><span class="tag tag-blue">小P · 建议下一步</span></div>
-        <h3 style="font-size:15px;margin:14px 0 7px">${state.materials.length ? "用 Spark 继续挖掘需求" : "先导入一份真实资料"}</h3>
-        <p style="color:var(--muted);font-size:10px;line-height:1.7;margin-bottom:18px">${state.materials.length ? "围绕当前方向邀请多个 Persona 模拟讨论，整理下一轮需要验证的问题。" : "先整理一段匿名访谈、用户评价或竞品对照，记录来源以便后续核对。"}</p>
-        <button class="button ${state.materials.length ? "button-purple" : "button-primary"} button-sm" data-go="${state.materials.length ? "spark" : "materials"}">${state.materials.length ? "进入 Spark" : "添加资料"} →</button>
-      </article>
-    </div>
-    <div class="section-title"><h2>快速开始</h2><p>按项目阶段选择需求探索或原型预演</p></div>
-    <div class="grid grid-3">
-      <article class="card quick-card" data-go="spark"><div class="quick-head"><span class="module-icon module-icon-spark">✦</span><div><span class="tag tag-orange">我只有一个想法</span><h3>Spark 播种</h3></div></div><p>并排查看资料和多 Persona 模拟观点，把讨论整理成待验证的产品假设。</p></article>
-      <article class="card quick-card" data-go="mirror"><div class="quick-head"><span class="module-icon module-icon-mirror">◫</span><div><span class="tag tag-green">我已有原型</span><h3>Mirror 预演</h3></div></div><p>记录原型流程和核心任务，预演测试步骤，查看八维评分框架中可用文字示范的维度。</p></article>
-      <article class="card quick-card" data-go="materials"><div class="quick-head"><span class="module-icon" style="color:var(--blue);background:var(--blue-soft)">▤</span><div><span class="tag tag-blue">保留调研来源</span><h3>需求资料库</h3></div></div><p>集中保存匿名访谈、问卷、评价和竞品记录，供团队核对假设时参考。</p></article>
-    </div>
-    <div class="section-title"><h2>最近活动</h2><button class="link-button" data-go="reports">查看全部 →</button></div>
-    <article class="card card-pad">
-      ${latest.length ? `<div class="activity-list">${latest.map(r => `<div class="activity"><span class="activity-icon">${r.icon}</span><div><strong>${escapeHTML(r.title)}</strong><small>${r.kind} · 已生成对应验证报告</small></div><time>${formatRelativeTime(r.createdAt)}</time></div>`).join("")}</div>` : `<div style="text-align:center;padding:28px;color:var(--muted);font-size:11px">还没有验证记录。完成一次 Spark 或 Mirror 后，活动会出现在这里。</div>`}
-    </article>` : `<article class="card card-pad no-current-project"><strong>先创建或打开一个项目</strong><p>项目中心会保留多个项目、验证记录和比赛准备状态，不会再用新项目覆盖旧项目。</p><button class="button button-primary" data-action="enter-empty">创建科创项目</button></article>`}`;
+    ${renderWorkspaceTotals(projectLibrary)}
+    ${renderRecentProjects(activeProjects)}
+    ${archivedProjects.length ? `<details class="archived-projects workspace-archive"><summary>已归档项目 <span>${archivedProjects.length}</span></summary><section class="student-project-gallery archived-grid">${archivedProjects.map(item => projectCardHTML(item, true)).join("")}</section></details>` : ""}`;
 }
 
 function onboardingHTML() {
@@ -833,7 +861,9 @@ function openProject(id, destination = "student") {
   if (!snapshot) return showToast("没有找到这个项目");
   if (snapshot.project.archived) return showToast("请先恢复已归档项目");
   switchToStoredProject(snapshot);
+  if (destination === "student") studentActiveView = "overview";
   navigate(destination);
+  document.querySelector("#page-content").focus({ preventScroll: true });
 }
 
 function editProject(id) {
@@ -1233,7 +1263,7 @@ document.addEventListener("keydown", event => {
 
 document.querySelectorAll("[data-nav]").forEach(el => el.addEventListener("click", e => { e.preventDefault(); navigate(el.dataset.nav); }));
 syncResumeButton();
-if (projectLibrary.some(item => !item.project.archived)) {
+if (projectLibrary.length) {
   enterDemo("resume", "workspace");
 }
 

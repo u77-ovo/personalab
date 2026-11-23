@@ -88,8 +88,10 @@ const pageTitles = {
 
 let state = loadState();
 let projectLibrary = loadProjectLibrary(state);
+const savedActiveProject = projectLibrary.find(item => item.project.id === state.project.id);
 const latestActiveProject = projectLibrary.find(item => !item.project?.archived);
-if (!hasSavedProject(state) && latestActiveProject) state = normalizeStoredState(latestActiveProject);
+if (savedActiveProject) state = normalizeStoredState(savedActiveProject);
+else if (!hasSavedProject(state) && latestActiveProject) state = normalizeStoredState(latestActiveProject);
 let currentSparkResult = state.sparkRuns[0] || null;
 let currentMirrorResult = state.mirrorRuns[0] || null;
 
@@ -412,11 +414,6 @@ function onboardingHTML() {
   </section>`;
 }
 
-function metric(icon, value, label, color) {
-  const vars = { purple: ["var(--purple-soft)","var(--purple)"], orange:["var(--orange-soft)","var(--orange)"], green:["var(--green-soft)","var(--green)"], blue:["var(--blue-soft)","var(--blue)"] }[color];
-  return `<article class="card metric-card"><span class="metric-icon" style="background:${vars[0]};color:${vars[1]}">${icon}</span><div><strong>${value}</strong><small>${label}</small></div></article>`;
-}
-
 function renderLabProject() {
   const projects = projectLibrary.filter(item => !item.project.archived);
   return `<div class="card lab-project">
@@ -426,7 +423,7 @@ function renderLabProject() {
         `<option value="${escapeHTML(project.id)}"${project.id === state.project.id ? " selected" : ""}>${escapeHTML(project.name)}</option>`).join("")}</select>
       <small id="lab-project-help">切换项目可查看它的最近记录。本轮结果会保存到所选项目。</small>
     </div>
-    <button class="link-button" type="button" data-go="workspace">项目中心</button>
+    <div class="lab-project-actions"><button class="link-button" type="button" data-go="workspace">项目中心</button><button class="link-button" type="button" data-return-validation>查看项目验证记录</button></div>
   </div>`;
 }
 
@@ -466,7 +463,7 @@ function renderSpark() {
   const scene = currentSparkResult?.scene ?? [blueprint.audience, blueprint.scenario, blueprint.problem].filter(Boolean).join("\n");
   const direction = currentSparkResult?.direction ?? (state.isSample ? sampleSparkQuestion : "");
   const currentApproach = currentSparkResult?.currentApproach ?? blueprint.currentApproach ?? "";
-  const sources = currentSparkResult?.sources ?? (state.materials.length ? ["用户资料"] : []);
+  const sources = currentSparkResult?.sources ?? (state.materials.some(hasMaterialExcerpt) ? ["用户资料"] : []);
   return `
     <div class="page-heading"><div><p class="eyebrow" style="color:var(--orange)">SPARK / 播种</p><h1>把项目痛点写成可验证的假设</h1><p>选择本轮要看的用户视角，梳理需求假设和下一轮调研方向。</p></div><span class="tag tag-orange">需求探索</span></div>
     ${renderLabProject()}
@@ -482,7 +479,7 @@ function renderSpark() {
             <summary>补充现有做法和参考资料 <small>选填</small></summary>
             <div class="form-group"><label class="form-label" for="spark-approach">用户目前怎么处理？</label><textarea class="textarea" id="spark-approach" name="currentApproach" placeholder="例如：看楼层图、问工作人员，或按手机导航走。">${escapeHTML(currentApproach)}</textarea></div>
             <div class="form-group"><span class="form-label">参考资料</span><div class="choice-grid">
-              <span class="choice"><input id="source-own" type="checkbox" name="sources" value="用户资料"${sources.includes("用户资料") ? " checked" : ""}><label for="source-own"><span class="choice-mark">✓</span><span><strong>本项目资料库</strong><small>随报告保存最新的三条资料摘录</small></span></label></span>
+              <span class="choice"><input id="source-own" type="checkbox" name="sources" value="用户资料"${sources.includes("用户资料") ? " checked" : ""}><label for="source-own"><span class="choice-mark">✓</span><span><strong>本项目资料库</strong><small>随报告保存最新的三条有摘要的资料</small></span></label></span>
               <span class="choice"><input id="source-web" type="checkbox" name="sources" value="公开资料"${sources.includes("公开资料") ? " checked" : ""}><label for="source-web"><span class="choice-mark">✓</span><span><strong>添加公开资料检索任务</strong><small>保存一条待检索记录</small></span></label></span>
             </div></div>
             <div class="form-group"><label class="form-label" for="spark-title">记录名称</label><input class="input" id="spark-title" name="title" value="${escapeHTML(currentSparkResult?.title || "")}" placeholder="${escapeHTML(state.project.name)}"></div>
@@ -533,8 +530,9 @@ function runSpark(form) {
   }
   const evidence = [];
   if (sources.includes("用户资料")) {
-    if (state.materials.length) {
-      state.materials.slice(0, 3).forEach((material, index) => evidence.push({
+    const referenceMaterials = state.materials.filter(hasMaterialExcerpt).slice(0, 3);
+    if (referenceMaterials.length) {
+      referenceMaterials.forEach((material, index) => evidence.push({
         id: `E-${String(index + 1).padStart(2,"0")}`,
         title: material.title,
         kind: material.type,
@@ -544,7 +542,7 @@ function runSpark(form) {
          status: material.isSample ? "内置示例资料" : "用户录入 · 待核对"
       }));
     } else {
-      evidence.push({ id:"G-01", title:"用户资料缺口", kind:"资料状态", quote:"当前资料库为空，无法用真实用户材料支持需求结论。", source:"系统检查", status:"待补充资料" });
+      evidence.push({ id:"G-01", title:"用户资料缺口", kind:"资料状态", quote:"本项目暂无可引用的资料摘要。可在证据库录入摘录，或给导入的文件补充摘要。", source:"系统检查", status:"待补充资料" });
     }
   }
   if (sources.includes("公开资料")) evidence.push({
@@ -677,7 +675,7 @@ function mirrorResultHTML(result) {
       ${reference ? `<a class="mirror-reference" href="${escapeHTML(reference)}" target="_blank" rel="noopener noreferrer">打开原型链接 ↗</a>` : ""}
     </header>
     <div class="mirror-plan-actions">
-      <button class="button button-primary" type="button" data-action="use-mirror-plan" data-mirror-run="${escapeHTML(result.id)}">${linkedToValidation ? "前往验证冲刺" : "用于真人验证"}</button>
+      <button class="button button-primary" type="button" data-action="use-mirror-plan" data-mirror-run="${escapeHTML(result.id)}">${linkedToValidation ? "前往真人测试" : "用于真人验证"}</button>
       <button class="button button-secondary" type="button" data-action="export-mirror-plan" data-mirror-run="${escapeHTML(result.id)}">导出测试计划</button>
     </div>
     <div class="result-tabs">
@@ -804,11 +802,11 @@ function renderPersonas() {
 
 function renderMaterials() {
   return `
-    <div class="page-heading"><div><p class="eyebrow">EVIDENCE LIBRARY</p><h1>需求资料库</h1><p>保存脱敏访谈、问卷、观察、公开评价与竞品信息，并明确区分演练示例和用户录入资料。</p></div><div class="heading-actions"><button class="button button-primary" data-open-modal="material">＋ 添加资料</button></div></div>
-    <div class="grid grid-4" style="margin-bottom:18px">${metric("▤",String(state.materials.length),"全部资料","purple")}${metric("访",String(state.materials.filter(m=>m.type.includes("访谈")).length),"用户访谈","orange")}${metric("问",String(state.materials.filter(m=>m.type.includes("问卷")).length),"问卷资料","green")}${metric("网",String(state.materials.filter(m=>m.source.includes("联网")).length),"公开资料方向","blue")}</div>
-    <div class="card card-pad"><div class="section-title" style="margin-top:0"><h2>资料清单</h2><div class="toolbar"><span class="tag tag-gray">初版直接检索原始片段</span></div></div>
-      ${state.materials.length ? `<div class="material-list">${state.materials.map(m=>`<article class="card material-card"><span class="material-type">${escapeHTML(m.icon||"文")}</span><div><h3>${escapeHTML(m.title)}</h3><p>${escapeHTML(m.content)}</p><div class="material-meta"><span>${escapeHTML(m.type)}</span><span>来源：${escapeHTML(m.source)}</span><span>${escapeHTML(m.date)}</span></div></div><div class="material-actions"><span class="tag tag-blue">可检索</span></div></article>`).join("")}</div>` : `<div class="empty-state" style="min-height:330px"><div><div class="empty-illustration">▤</div><h3>还没有真实需求资料</h3><p>添加一段访谈摘录、一条用户评价或一份问卷摘要，就可以在 Spark 和 Mirror 中作为证据使用。</p><button class="button button-purple button-sm" data-open-modal="material">添加第一份资料</button></div></div>`}
-    </div>`;
+    <div class="page-heading"><div><h1>项目证据库</h1><p>${escapeHTML(state.project.name)} · 管理访谈、问卷、公开资料和本地文件。</p></div><div class="heading-actions"><button class="button button-primary" data-open-modal="material">＋ 录入资料</button></div></div>
+    <section class="card card-pad workbench-evidence-panel" aria-label="本项目资料">
+      ${renderEvidenceImport()}
+      ${renderEvidenceList(state.materials)}
+    </section>`;
 }
 
 function renderReports() {
@@ -845,6 +843,12 @@ function bindPageEvents() {
   document.querySelector("#mirror-file")?.addEventListener("change", e => { const file=e.target.files[0]; document.querySelector("#upload-label").textContent=file?`已选择：${file.name}`:"也可以上传本地文件"; });
   document.querySelectorAll("[data-download-report]").forEach(el => el.addEventListener("click", () => downloadReport(el.dataset.downloadReport)));
   document.querySelectorAll("[data-view-report]").forEach(el => el.addEventListener("click", () => viewReport(el.dataset.viewReport)));
+  document.querySelectorAll("[data-return-validation]").forEach(button => button.addEventListener("click", () => {
+    studentActiveView = "validation";
+    navigate("student");
+    document.querySelector("#workbench-tab-validation")?.focus({ preventScroll: true });
+  }));
+  bindProjectEvidence();
   window.studentWorkbench.bind?.();
   bindResultTabs();
 }
@@ -933,6 +937,7 @@ function deleteProject(id) {
   projectLibrary = projectLibrary.filter(item => item.project.id !== id);
   saveProjectLibrary();
   if (state.project.id === id) selectFallbackProject(id);
+  releaseEvidenceFiles(project.materials).catch(() => showToast("项目已删除，浏览器暂未清理项目原件。"));
   renderPage();
   syncResumeButton();
   showToast("项目已永久删除");
@@ -1143,7 +1148,7 @@ function saveModal(type) {
     state.personas.push({ id:`p${Date.now()}`,name,short:name[0],color:"#5d7cbf",type:"自定义",desc:desc||"用户创建的自定义 Persona",traits:traits.length?traits:["自定义"] });
   } else {
     const materialType = root.querySelector("#modal-type").value;
-    state.materials.unshift({ id:`m${Date.now()}`,title:name,type:materialType,source:root.querySelector("#modal-source").value.trim()||"用户上传",content:desc||"未填写内容摘要",date:"刚刚",icon:materialType[0] });
+    state.materials.unshift({ id:createProjectId(),title:name,type:materialType,source:root.querySelector("#modal-source").value.trim()||"用户录入",content:desc||"未填写内容摘要",createdAt:Date.now(),icon:materialType[0] });
     state.project.progress = Math.max(state.project.progress,35);
   }
   saveState(); dismissModal(false); renderPage(); showToast("已保存到本地演示项目");
@@ -1171,10 +1176,11 @@ function useMirrorPlan(id) {
   if (run.task && !hasStudentFields(project, "testTask")) updates.testTask = run.task;
   if (run.successCriteria && !hasStudentFields(project, "successMetric")) updates.successMetric = run.successCriteria;
   if (Object.keys(updates).length) state.studentProject = { ...state.studentProject, ...updates };
+  saveState();
   studentActiveView = "validation";
   navigate("student");
   document.querySelector(".linked-mirror-plan h2")?.focus();
-  showToast("Mirror 测试计划已关联到验证冲刺");
+  showToast("Mirror 测试计划已关联到真人测试");
 }
 
 function downloadReport(id) {
@@ -1228,11 +1234,13 @@ document.addEventListener("click", e => {
   }
   if (action === "reset-demo") {
     if (confirm(`重置“${state.project.name}”的资料、Persona 和验证记录？其他项目不会受到影响。`)) {
+      const oldMaterials = state.materials;
       const meta = { ...state.project, progress: 0, updatedAt: Date.now() };
       state = initialState(meta);
       currentSparkResult = null;
       currentMirrorResult = null;
       saveState();
+      releaseEvidenceFiles(oldMaterials).catch(() => showToast("项目已重置，浏览器暂未清理项目原件。"));
       navigate("workspace");
       showToast("当前项目记录已重置");
     }

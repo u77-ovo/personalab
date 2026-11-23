@@ -77,7 +77,7 @@ function getStudentProject(source = state) {
 }
 
 function hasOwnEvidence(source) {
-  return source.materials.some(item => !item.isSample && item.content?.trim() && item.content !== "未填写内容摘要");
+  return source.materials.some(item => !item.isSample && hasMaterialExcerpt(item));
 }
 
 function hasStudentFields(project, ...keys) {
@@ -105,7 +105,7 @@ function getReadiness(project = getStudentProject(), source = state) {
 
 function getStudentReview(project = getStudentProject()) {
   const linkedMaterial = state.materials.find(item => item.id === project.materialId);
-  const linkedOwnEvidence = linkedMaterial && !linkedMaterial.isSample && linkedMaterial.content?.trim() && linkedMaterial.content !== "未填写内容摘要";
+  const linkedOwnEvidence = linkedMaterial && !linkedMaterial.isSample && hasMaterialExcerpt(linkedMaterial);
   const participantCount = getRunPersonas(state).length;
   return [
     {
@@ -143,28 +143,30 @@ function getStudentReview(project = getStudentProject()) {
 
 function getEvidenceLedger(project = getStudentProject()) {
   const materialRows = state.materials.map(item => ({
-    id: item.id,
+    id: item.id, createdAt: materialTimestamp(item),
     title: item.title,
     type: item.isSample ? "演练资料" : "用户录入",
-    status: item.isSample ? "仅作示例" : "待核对原始来源",
+    status: item.isSample ? "仅作示例" : item.attachment && !hasMaterialExcerpt(item) ? "附件已存 · 待补摘要" : "待核对原始来源",
     tone: item.isSample ? "gray" : "blue"
   }));
   const hypothesisRows = state.sparkRuns.flatMap(run => (run.insights || []).slice(0, 2).map((item, index) => ({
-    id: `${run.id}-H${index + 1}`,
+    id: `${run.id}-H${index + 1}`, createdAt: run.createdAt,
+    recordId: validationRecordId({ kind: "spark", id: run.id }),
     title: item.title,
     type: "待验证假设",
-    status: "需要真人验证",
+    status: run.title ? `${run.title} · 需要真人验证` : "需要真人验证",
     tone: "orange"
   })));
   const mirrorRows = state.mirrorRuns.slice(0, 1).map(run => ({
-    id: run.id,
+    id: run.id, createdAt: run.createdAt,
+    recordId: validationRecordId({ kind: "mirror", id: run.id }),
     title: `${run.title} · ${run.task}`,
     type: "原型预演",
     status: Array.isArray(run.coverage) ? "待真人验证的测试计划" : "历史演示记录",
     tone: "green"
   }));
   const resultRows = project.testResult ? [{
-    id: "TEST-01",
+    id: "TEST-01", createdAt: state.testResultRecordedAt,
     title: project.testResult,
     type: "真人测试记录",
     status: "用户录入 · 待复核",
@@ -180,65 +182,65 @@ function latestStudentReports() {
   }));
 }
 
+const studentViews = [["overview", "项目概况"], ["canvas", "项目蓝图"], ["validation", "验证记录"], ["delivery", "提交中心"]];
+
+const workbenchDate = new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
+const workbenchClock = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
+
+function workbenchTime(value, timeOnly = false) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return '<span class="workbench-time">未记录时间</span>';
+  const day = workbenchDate.format(date);
+  const clock = workbenchClock.format(date);
+  return `<time class="workbench-time" datetime="${date.toISOString()}" title="${day} ${clock}">${timeOnly ? clock : `${day} ${clock}`}</time>`;
+}
+
 function renderStudent() {
   const project = getStudentProject();
   const readiness = getReadiness(project);
+  const activeProjects = projectLibrary.filter(item => !item.project.archived);
   return `
-    <div class="page-heading student-page-heading">
-      <div>
-        <p class="eyebrow">PERSONALAB V2.0-STUDENT · COMPETITION WORKBENCH</p>
-        <h1>${escapeHTML(state.project.name)} · 赛前验证驾驶舱</h1>
-        <p>梳理项目痛点、需求依据和不同人群的意见，再通过原型预演与真人测试验证方案。</p>
+    <div class="student-workbench">
+      <header class="workbench-header student-page-heading">
+        <div class="workbench-identity"><p class="workbench-context">科创工作台${state.isSample ? ' <span class="tag tag-gray">演练案例</span>' : ""}</p>
+          <h1>${escapeHTML(state.project.name)}</h1>
+          <p class="workbench-description">${escapeHTML(state.project.description)}</p>
+        </div>
+        <div class="workbench-controls">
+          <label for="workbench-project">切换项目</label><select class="select" id="workbench-project">${activeProjects.map(({ project: item }) => `<option value="${escapeHTML(item.id)}" ${item.id === state.project.id ? "selected" : ""}>${escapeHTML(item.name)}</option>`).join("")}</select>
+          <label for="workbench-phase">项目阶段</label><select class="select" id="workbench-phase">${projectStages.map(phase => `<option ${phase === state.project.phase ? "selected" : ""}>${escapeHTML(phase)}</option>`).join("")}</select>
+        </div>
+      </header>
+      <div class="student-view-tabs" role="tablist" aria-label="科创工作台">
+        ${studentViews.map(([id, label]) => `<button type="button" role="tab" id="workbench-tab-${id}" class="student-view-tab ${studentActiveView === id ? "active" : ""}" data-student-view="${id}" aria-selected="${studentActiveView === id}" ${studentActiveView === id ? 'aria-controls="workbench-panel"' : 'tabindex="-1"'}>${label}</button>`).join("")}
       </div>
-      <div class="heading-actions">
-        <button class="button button-secondary" type="button" data-export-student>导出打磨记录</button>
-        <button class="button button-primary" type="button" data-go="spark">Spark 需求探索</button>
-        <button class="button button-secondary" type="button" data-go="mirror">Mirror 原型预演</button>
-      </div>
-    </div>
-    <div class="student-boundary-note">
-      <span class="boundary-icon">i</span>
-      <div><strong>${state.isSample ? "当前为内置演练案例" : "当前为本地项目工作区"}</strong><p>Persona 与本地规则用于发现问题。真实结论必须来自可追溯资料和真人任务测试。</p></div>
-      <span class="tag tag-gray">证据边界已开启</span>
-    </div>
-    ${renderStageRail(readiness)}
-    <div class="student-view-tabs" role="tablist" aria-label="项目打磨视图">
-      ${[
-        ["overview", "项目总览"], ["canvas", "项目蓝图"], ["validation", "验证冲刺"], ["delivery", "提交中心"]
-      ].map(([id, label]) => `<button type="button" role="tab" class="student-view-tab ${studentActiveView === id ? "active" : ""}" data-student-view="${id}" aria-selected="${studentActiveView === id}">${label}</button>`).join("")}
-    </div>
-    <section class="student-view-panel">
-      ${studentActiveView === "canvas" ? renderCanvasView(project) : studentActiveView === "validation" ? renderValidationView(project) : studentActiveView === "delivery" ? renderDeliveryView(project) : renderOverviewView(project, readiness)}
-    </section>`;
-}
-
-function renderStageRail(readiness) {
-  const stages = [
-    ["problem", "项目蓝图"], ["evidence", "需求资料"],
-    ["spark", "Spark 探索"], ["mirror", "Mirror 预演"], ["result", "验证冲刺"]
-  ];
-  return `<div class="stage-rail" aria-label="项目工具">
-    ${stages.map(([id, label]) => {
-      const milestone = readiness.milestones.find(item => item.id === id);
-      return `<button type="button" class="stage-step ${milestone.done ? "done" : ""}" data-readiness-action="${milestone.action}"><span aria-hidden="true">${milestone.done ? "✓" : "·"}</span><strong>${label}</strong></button>`;
-    }).join("")}
-  </div>`;
+      <section class="student-view-panel" id="workbench-panel" role="tabpanel" aria-labelledby="workbench-tab-${studentActiveView}">
+        ${studentActiveView === "canvas" ? renderCanvasView(project) : studentActiveView === "validation" ? renderValidationView(project) : studentActiveView === "delivery" ? renderDeliveryView(project) : renderOverviewView(project, readiness)}
+      </section>
+    </div>`;
 }
 
 function renderOverviewView(project, readiness) {
   const ledger = getEvidenceLedger(project);
   const review = getStudentReview(project);
-  const evidenceCount = state.materials.filter(item => !item.isSample).length;
-  const hypothesisCount = state.sparkRuns.reduce((sum, run) => sum + (run.insights?.length || 0), 0);
+  const counters = [
+    { id: "evidence", label: "本项目资料", value: state.materials.length, unit: "份", symbol: "▤" },
+    { id: "spark", label: "Spark 需求探索", value: state.sparkRuns.length, unit: "轮", symbol: "✦" },
+    { id: "mirror", label: "Mirror 原型预演", value: state.mirrorRuns.length, unit: "轮", symbol: "◫" }
+  ];
   return `
-    <div class="student-dashboard-grid">
-      <article class="card readiness-card">
-        <div class="readiness-ring" style="--readiness:${readiness.score}"><div><strong>${readiness.score}</strong><small>打磨进度</small></div></div>
-        <div class="readiness-copy"><span class="tag tag-purple">${readiness.done}/8 个关键节点</span><h2>${readiness.next ? `下一步 · ${readiness.next.label}` : "已形成完整验证闭环"}</h2><p>${readiness.next?.short || "继续保留真实测试记录和每轮原型改动。"}</p>${readiness.next ? `<button class="button button-primary button-sm" type="button" data-readiness-action="${readiness.next.action}">去完成 →</button>` : ""}</div>
+    <div class="workbench-overview-grid">
+      <article class="card workbench-progress">
+        <div class="workbench-ring" style="--ring-value:${readiness.score}%" role="progressbar" aria-label="项目打磨进度" aria-valuenow="${readiness.score}" aria-valuemin="0" aria-valuemax="100" aria-valuetext="${readiness.done} 个节点已完成，共 ${readiness.milestones.length} 个">
+          <span>${readiness.score}<small>%</small></span>
+        </div>
+        <div><h2>项目进度</h2><p><strong>${readiness.done} / ${readiness.milestones.length}</strong> 个关键节点已完成</p>
+          ${readiness.next ? `<button class="link-button" type="button" data-readiness-action="${readiness.next.action}">下一步 · ${readiness.next.label} →</button>` : `<p>已记录完整验证流程</p>`}
+        </div>
       </article>
-      <article class="card dashboard-stat-card"><span class="dashboard-stat-icon blue">▤</span><div><small>用户录入资料</small><strong>${evidenceCount}</strong><p>${evidenceCount ? "回看原始来源并确认脱敏" : "示例资料不会计入真实证据"}</p></div></article>
-      <article class="card dashboard-stat-card"><span class="dashboard-stat-icon orange">◇</span><div><small>待验证假设</small><strong>${hypothesisCount}</strong><p>${hypothesisCount ? "把假设转成真人测试任务" : "运行 Spark 形成首轮问题"}</p></div></article>
-      <article class="card dashboard-stat-card"><span class="dashboard-stat-icon green">◫</span><div><small>原型预演轮次</small><strong>${state.mirrorRuns.length}</strong><p>${state.mirrorRuns.length ? "查看问题后安排真人测试" : "用 Mirror 走查一个核心任务"}</p></div></article>
+      <ul class="workbench-counts">
+        ${counters.map(({id, label, value, unit, symbol}) => `<li><button class="card workbench-count workbench-tone-${id}" type="button" data-validation-section="${id}"><span class="workbench-count-icon" aria-hidden="true">${symbol}</span><span><small>${label}</small><strong>${value}<small> ${unit}</small></strong></span><span class="workbench-count-arrow" aria-hidden="true">→</span></button></li>`).join("")}
+      </ul>
     </div>
     <div class="student-main-grid">
       <article class="card card-pad project-snapshot-card">
@@ -254,7 +256,7 @@ function renderOverviewView(project, readiness) {
     </div>
     <article class="card card-pad ledger-card">
       <div class="student-card-head"><div><span class="student-card-kicker">EVIDENCE LEDGER</span><h2>证据、假设与预演记录</h2><p>不同类型的信息分别标记，避免把 Persona 推演写成真实用户结论。</p></div><button class="button button-secondary button-sm" type="button" data-go="materials">管理资料</button></div>
-      ${ledger.length ? `<div class="ledger-table"><div class="ledger-row ledger-head"><span>编号</span><span>记录</span><span>类型</span><span>当前状态</span></div>${ledger.map(item => `<div class="ledger-row"><code>${escapeHTML(item.id)}</code><strong>${escapeHTML(item.title)}</strong><span class="tag tag-${item.tone}">${item.type}</span><small>${item.status}</small></div>`).join("")}</div>` : `<div class="student-empty-inline"><span>▤</span><div><strong>还没有验证记录</strong><p>先添加一条需求资料，或运行 Spark 梳理第一批待验证假设。</p></div><button class="button button-primary button-sm" data-go="materials">添加资料</button></div>`}
+      ${ledger.length ? `<ul class="workbench-ledger">${ledger.map(item => `<li><div>${item.recordId ? `<button type="button" class="link-button" data-run-jump="${escapeHTML(item.recordId)}">${escapeHTML(item.title)} →</button>` : `<strong>${escapeHTML(item.title)}</strong>`}<small>${escapeHTML(item.status)}</small></div><span class="tag tag-${item.tone}">${item.type}</span>${workbenchTime(item.createdAt)}</li>`).join("")}</ul>` : `<div class="student-empty-inline"><span>▤</span><div><strong>还没有验证记录</strong><p>先添加一条需求资料，或运行 Spark 梳理第一批待验证假设。</p></div><button class="button button-primary button-sm" data-validation-section="evidence">添加资料</button></div>`}
     </article>`;
 }
 
@@ -312,7 +314,7 @@ function renderCanvasView(project) {
             <span>暂时不确定的字段可以留空</span>
             ${next
               ? `<button class="button button-primary" type="button" data-blueprint-step="${next.id}">下一步 →</button>`
-              : `<button class="button button-primary" type="button" data-student-view="validation">进入验证冲刺 →</button>`}
+              : `<button class="button button-primary" type="button" data-student-view="validation">进入验证记录 →</button>`}
           </div>
         </form>
       </article>
@@ -324,18 +326,115 @@ function renderStudentField(field, project) {
   return `<div class="form-group student-form-wide"><label class="form-label" for="student-${field.key}">${field.label}${hint ? ` <small>${hint}</small>` : ""}</label><textarea class="textarea" id="student-${field.key}" name="${field.key}" rows="3" maxlength="1600" placeholder="${field.placeholder}">${escapeHTML(project[field.key] || "")}</textarea></div>`;
 }
 
+const validationTools = {
+  spark: { label: "Spark", purpose: "需求探索", itemLabel: "需求假设", symbol: "✦", itemKey: "insights", contextKey: "direction" },
+  mirror: { label: "Mirror", purpose: "原型预演", itemLabel: "原型问题", symbol: "◫", itemKey: "issues", contextKey: "task" }
+};
+
+function getValidationRuns(kind) {
+  const tool = validationTools[kind];
+  const reports = new Map(state.reports.filter(report => report.kind === tool.label).map(report => [report.id, report]));
+  const runs = kind === "spark" ? state.sparkRuns : state.mirrorRuns;
+  return runs.map(run => {
+    const report = reports.get(run.id);
+    return {
+      id: run.id, kind, report, date: run.createdAt || report?.createdAt,
+      title: run.title || report?.title || tool.purpose,
+      items: run[tool.itemKey] || [],
+      context: run[tool.contextKey] || report?.desc,
+      personas: run.personas
+    };
+  }).sort((a, b) => (new Date(b.date).getTime() || 0) - (new Date(a.date).getTime() || 0));
+}
+
+function validationRecordId(record) {
+  return `validation-run-${record.kind}-${record.id}`;
+}
+
+function renderValidationItems(items) {
+  return `<ul class="validation-item-list">${items.map(item => `<li>
+    <div><strong>${escapeHTML(item.title)}</strong>${item.detail ? `<p>${escapeHTML(item.detail)}</p>` : ""}${item.count > 1 ? `<small>在 ${item.count} 条结果中出现</small>` : ""}</div>
+    <div class="validation-item-meta">${item.level ? `<span class="tag ${item.level === "高" ? "tag-orange" : "tag-gray"}">${escapeHTML(item.level)}优先级</span>` : ""}
+      ${item.record ? `<button type="button" class="link-button" data-run-jump="${escapeHTML(validationRecordId(item.record))}">查看轮次 →</button>` : ""}
+    </div>
+  </li>`).join("")}</ul>`;
+}
+
+function renderValidationColumn(kind, records) {
+  const tool = validationTools[kind];
+  const allItems = new Map();
+  for (const record of records) {
+    for (const item of record.items) {
+      const key = JSON.stringify([item.title, item.detail]);
+      const previous = allItems.get(key);
+      if (previous) previous.count++;
+      else allItems.set(key, { ...item, count: 1, record });
+    }
+  }
+  return `<section class="card card-pad validation-column workbench-tone-${kind}" id="workbench-${kind}" aria-labelledby="heading-${kind}">
+    <header class="workbench-section-head">
+      <div class="validation-column-label"><span class="workbench-count-icon" aria-hidden="true">${tool.symbol}</span><div><h2 id="heading-${kind}" tabindex="-1">${tool.label} ${tool.purpose}</h2><p>${records.length} 轮记录</p></div></div>
+      <button type="button" class="button button-secondary button-sm validation-start" data-start-validation="${kind}">＋ 开始 ${tool.label}</button>
+    </header>
+    ${records.length ? `<div class="validation-run-list">${records.map(record => `<details class="validation-run" id="${escapeHTML(validationRecordId(record))}">
+      <summary><span class="validation-summary-title"><strong>${escapeHTML(record.title)}</strong><small>${escapeHTML(record.context || record.items[0]?.title || "暂无摘要")}</small></span><span class="validation-summary-meta">${workbenchTime(record.date)}<small>${record.items.length} 条${tool.itemLabel}</small></span></summary>
+      <div class="validation-run-body">
+        ${record.context ? `<p class="validation-run-context">${escapeHTML(record.context)}</p>` : ""}
+        ${record.personas?.length ? `<p class="validation-personas">参与 Persona · ${escapeHTML(record.personas.map(persona => persona.name).join("、"))}</p>` : ""}
+        ${record.items.length ? renderValidationItems(record.items) : '<p class="workbench-empty">此轮没有保存明细。</p>'}
+        ${record.report ? `<button type="button" class="link-button" data-view-report="${escapeHTML(record.report.id)}">查看完整报告 →</button>` : ""}
+      </div>
+    </details>`).join("")}</div>` : `<p class="workbench-empty">完成一次${tool.purpose}后，本轮结果会自动显示在这里。</p>`}
+    <details class="validation-collection" ${allItems.size ? "" : "hidden"}>
+      <summary>全部${tool.itemLabel}<span>${allItems.size} 条</span></summary>
+      ${renderValidationItems([...allItems.values()])}
+    </details>
+  </section>`;
+}
+
+function renderValidationTimeline(spark, mirror) {
+  const groups = new Map();
+  const runs = [...spark, ...mirror].sort((a, b) => (new Date(b.date).getTime() || 0) - (new Date(a.date).getTime() || 0));
+  for (const run of runs) {
+    const date = run.date ? new Date(run.date) : null;
+    const key = date && Number.isFinite(date.getTime()) ? workbenchDate.format(date) : "未记录日期";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(run);
+  }
+  return `<section class="card card-pad validation-timeline" aria-labelledby="timeline-title">
+    <header class="workbench-section-head"><h2 id="timeline-title">验证时间线</h2><span class="workbench-time">${runs.length} 轮</span></header>
+    ${groups.size ? [...groups].map(([day, records]) => `<section class="timeline-day"><h3>${day}</h3><ol>
+      ${records.map(record => `<li class="workbench-tone-${record.kind}"><button class="timeline-event" type="button" data-run-jump="${escapeHTML(validationRecordId(record))}"><span class="timeline-tool">${validationTools[record.kind].label}</span><strong>${escapeHTML(record.title)}</strong>${workbenchTime(record.date, true)}<span class="timeline-arrow" aria-hidden="true">↗</span></button></li>`).join("")}
+    </ol></section>`).join("") : '<p class="workbench-empty">完成 Spark 或 Mirror 后，此处会按时间记录每一轮。</p>'}
+  </section>`;
+}
+
 function renderValidationView(project) {
+  const spark = getValidationRuns("spark");
+  const mirror = getValidationRuns("mirror");
+  return `<div class="workbench-validation">
+    <section class="card card-pad workbench-evidence-panel" id="workbench-evidence" aria-labelledby="validation-evidence-title">
+      <header class="workbench-section-head"><div><h2 id="validation-evidence-title" tabindex="-1">本项目资料</h2><p>${state.materials.length} 份资料，保存在项目证据库</p></div><button type="button" class="button button-secondary button-sm" data-open-modal="material">＋ 录入资料</button></header>
+      ${renderEvidenceImport()}
+      ${renderEvidenceList(state.materials)}
+    </section>
+    <div class="validation-columns">${renderValidationColumn("spark", spark)}${renderValidationColumn("mirror", mirror)}</div>
+    ${renderValidationTimeline(spark, mirror)}
+    ${renderLiveValidation(project)}
+  </div>`;
+}
+
+function renderLiveValidation(project) {
   const validationFields = studentFields.filter(field => validationFieldKeys.includes(field.key));
   const mirrorPlan = state.mirrorRuns.find(run => run.id === state.mirrorValidationRunId);
   const hasPlan = Boolean(project.hypothesis && project.successMetric && project.testTask && project.testPlan);
   const hasResult = Boolean(project.testResult);
   const hasIteration = Boolean(project.iterationPlan);
-  const ownEvidenceCount = state.materials.filter(item => !item.isSample).length;
   return `
-    <div class="validation-sprint">
+    <div class="validation-sprint" id="workbench-live-test">
       <article class="card card-pad canvas-form-card">
         <div class="sprint-header">
-          <div><span class="student-card-kicker">VALIDATION SPRINT</span><h2>把“我觉得好用”改成可观察的验证</h2><p>先锁定假设、统一任务和成功标准，再记录真实行为、反例与由此触发的改动。</p></div>
+          <div><h2>真人测试与迭代</h2><p>先确定假设、统一任务和成功标准，再记录观察和下一轮改动。</p></div>
           <span class="sprint-status">${hasIteration ? "已形成一轮闭环" : hasResult ? "等待决定改动" : hasPlan ? "可以开始招募" : "正在设计测试"}</span>
         </div>
         <div class="student-boundary-note" style="margin-bottom:18px">
@@ -344,7 +443,7 @@ function renderValidationView(project) {
         </div>
         ${mirrorPlan ? `<section class="linked-mirror-plan">
           <div class="student-card-head">
-            <div><h2 tabindex="-1">已关联的 Mirror 测试计划</h2><p>${escapeHTML(mirrorPlan.title)} · ${escapeHTML(formatRelativeTime(mirrorPlan.createdAt))}</p></div>
+            <div><h2 tabindex="-1">已关联的 Mirror 测试计划</h2><p>${escapeHTML(mirrorPlan.title)} · ${workbenchTime(mirrorPlan.createdAt)}</p></div>
             <button class="link-button" type="button" data-view-report="${escapeHTML(mirrorPlan.id)}">查看原预演</button>
           </div>
           <p class="linked-mirror-task">${escapeHTML(mirrorPlan.task)}</p>
@@ -359,7 +458,7 @@ function renderValidationView(project) {
           ${validationFields.slice(0, 4).map(field => renderStudentField(field, project)).join("")}
           <div class="canvas-section-title"><span>02</span><div><strong>记录与迭代</strong><small>保留成功、失败、反例和关键原话</small></div></div>
           ${validationFields.slice(4).map(field => renderStudentField(field, project)).join("")}
-          <div class="student-form-wide canvas-save-row"><span>建议先保存空白测试方案，再开始招募</span><button class="button button-primary" type="submit">保存验证冲刺</button></div>
+          <div class="student-form-wide canvas-save-row"><span>建议在招募前保存测试方案</span><button class="button button-primary" type="submit">保存真人测试记录</button></div>
         </form>
       </article>
       <aside class="canvas-side-stack">
@@ -373,33 +472,32 @@ function renderValidationView(project) {
           </div>
           <div class="evidence-rule"><strong>证据规则</strong><p>“参与者说喜欢”只能作为态度反馈；“完成时间下降、遗漏减少、能复述理由”才是可观察结果。</p></div>
         </article>
-        <article class="card card-pad">
-          <div class="student-card-head"><div><span class="student-card-kicker">EVIDENCE STATUS</span><h2>当前可用资产</h2></div></div>
-          <div class="mini-evidence-grid"><div><b>${ownEvidenceCount}</b><small>用户录入资料</small></div><div><b>${state.sparkRuns.length}</b><small>Spark 轮次</small></div><div><b>${state.mirrorRuns.length}</b><small>Mirror 轮次</small></div></div>
-          <button class="button button-secondary button-sm" style="margin-top:14px;width:100%" type="button" data-go="mirror">先用 Mirror 检查任务 →</button>
-        </article>
       </aside>
     </div>`;
 }
 
-function renderDeliveryView(project) {
-  const checklist = state.submissionChecklist || {};
-  const items = [
+const submissionItems = [
     ["pledge", "个人承诺书 PDF", "打印签字，确认原创、真实和无知识产权争议"],
     ["description", "800 字以内作品说明 PDF", "包含场景痛点、设计思路、功能、使用、创新和价值"],
     ["product", "可访问、可交互的完整成品", "提供有效访问链接或清楚的访问方式"],
     ["video", "5 分钟以内有解说 MP4", "完整展示核心任务、实际运行和落地场景"]
-  ];
-  const done = items.filter(([key]) => checklist[key]).length;
+];
+
+function renderDeliveryView(project) {
+  const checklist = state.submissionChecklist || {};
+  const done = submissionItems.filter(([key]) => checklist[key]).length;
   const reportRows = latestStudentReports();
+  const { name, deadline } = state.project.competition;
   return `
-    <div class="delivery-hero"><div><span class="student-card-kicker">SUBMISSION READINESS</span><h2>把验证过程转成有说服力的参赛材料</h2><p>先确保作品能运行，再用需求证据、Persona 分歧和原型改动讲清项目价值。</p></div><div class="delivery-score"><strong>${done}/4</strong><small>材料已准备</small></div></div>
+    <section class="card card-pad workbench-submission" aria-labelledby="submission-title"><div>
+      <h2 id="submission-title">参赛材料准备</h2><p>${escapeHTML(name || "当前项目")}${deadline ? ` · 截止 ${escapeHTML(deadline)}` : ""}</p>
+    </div><div class="submission-progress"><label for="submission-coverage"><strong>${done} / ${submissionItems.length}</strong> 项已完成</label><progress id="submission-coverage" value="${done}" max="${submissionItems.length}"></progress></div></section>
     <div class="delivery-layout">
-      <article class="card card-pad"><div class="student-card-head"><div><span class="student-card-kicker">REQUIRED FILES</span><h2>提交材料清单</h2></div><span class="tag ${done === 4 ? "tag-green" : "tag-orange"}">${done === 4 ? "已齐备" : `还差 ${4 - done} 项`}</span></div><div class="deliverable-list">${items.map(([key, title, detail], index) => `<label class="deliverable-item ${checklist[key] ? "done" : ""}"><input type="checkbox" data-deliverable="${key}" ${checklist[key] ? "checked" : ""}><span class="deliverable-check">${checklist[key] ? "✓" : index + 1}</span><span><strong>${title}</strong><small>${detail}</small></span></label>`).join("")}</div></article>
+      <article class="card card-pad"><div class="student-card-head"><div><h2>参考清单</h2><p>材料格式与篇幅请核对所选赛事的要求。</p></div></div><div class="deliverable-list">${submissionItems.map(([key, title, detail]) => `<label class="deliverable-item ${checklist[key] ? "done" : ""}"><input type="checkbox" data-deliverable="${key}" ${checklist[key] ? "checked" : ""}><span class="deliverable-check" aria-hidden="true">${checklist[key] ? "✓" : "○"}</span><span><strong>${title}</strong><small>${detail}</small></span></label>`).join("")}</div></article>
       <article class="card card-pad"><div class="student-card-head"><div><span class="student-card-kicker">STORYLINE</span><h2>5 分钟演示叙事</h2></div></div><ol class="storyline-list"><li><span>00:00–00:40</span><strong>真实校园问题</strong><p>${escapeHTML(project.problem || "展示用户、场景和当前做法")}</p></li><li><span>00:40–01:40</span><strong>不同人群与需求依据</strong><p>展示资料来源和 Persona 共识、分歧。</p></li><li><span>01:40–03:30</span><strong>完整核心任务</strong><p>从输入到结果走完一条可交互链路。</p></li><li><span>03:30–04:30</span><strong>验证与改动</strong><p>展示 Mirror 问题、真人观察和一次具体改动。</p></li><li><span>04:30–05:00</span><strong>价值与推广</strong><p>说明适用对象、落地方式和可复制场景。</p></li></ol></article>
     </div>
     <div class="delivery-layout lower">
-      <article class="card card-pad"><div class="student-card-head"><div><span class="student-card-kicker">REPORT ASSETS</span><h2>现有验证资产</h2></div><button class="link-button" data-go="reports">报告中心 →</button></div><div class="student-source-list">${reportRows.map(({ kind, report }) => `<div class="student-review-item"><div class="student-review-content"><strong>${kind === "Spark" ? "Spark 需求探索" : "Mirror 原型预演"}</strong><p>${report ? escapeHTML(report.desc) : "尚未运行"}</p></div>${report ? `<button class="link-button" type="button" data-view-report="${escapeHTML(report.id)}">查看</button>` : `<button class="link-button" type="button" data-go="${kind.toLowerCase()}">开始 →</button>`}</div>`).join("")}</div></article>
+      <article class="card card-pad"><div class="student-card-head"><div><h2>最近验证报告</h2></div><button class="link-button" data-go="reports">全部报告 →</button></div><div class="student-source-list">${reportRows.map(({ kind, report }) => `<div class="student-review-item"><div class="student-review-content"><strong>${report ? escapeHTML(report.title) : `${kind} 尚未运行`}</strong>${report ? `<p>${workbenchTime(report.createdAt)}</p>` : ""}</div>${report ? `<button class="link-button" type="button" data-view-report="${escapeHTML(report.id)}">查看</button>` : `<button class="link-button" type="button" data-start-validation="${kind.toLowerCase()}">开始 →</button>`}</div>`).join("")}</div></article>
       <article class="card card-pad export-card"><span class="export-icon">⇩</span><h2>导出科创项目打磨记录</h2><p>汇总立项画布、重点 Persona、证据分类、Spark / Mirror 报告编号和提交准备状态。</p><button class="button button-primary" type="button" data-export-student>导出 Markdown</button></article>
     </div>`;
 }
@@ -418,6 +516,9 @@ function storeStudentProject(form, { trim = true, retry = false } = {}) {
     ...current,
     ...updates
   };
+  if (Object.hasOwn(updates, "testResult") && updates.testResult !== (current.testResult || "")) {
+    state.testResultRecordedAt = updates.testResult ? Date.now() : null;
+  }
   saveState();
   return true;
 }
@@ -425,7 +526,8 @@ function storeStudentProject(form, { trim = true, retry = false } = {}) {
 function saveStudentProject(form) {
   storeStudentProject(form);
   renderPage();
-  showToast("验证冲刺已保存");
+  document.querySelector("#student-validation-form [type='submit']")?.focus({ preventScroll: true });
+  showToast("真人测试记录已保存");
 }
 
 function saveBlueprint(form) {
@@ -488,32 +590,108 @@ function bindBlueprint() {
 }
 
 function handleReadinessAction(action) {
-  if (["overview", "canvas", "validation", "delivery"].includes(action)) {
+  if (studentViews.some(([id]) => id === action)) {
     studentActiveView = action;
     renderPage();
+    if (action === "validation") {
+      focusWorkbenchSection(document.querySelector("#workbench-live-test h2"));
+    } else {
+      document.querySelector(`#workbench-tab-${action}`)?.focus({ preventScroll: true });
+    }
   } else {
     navigate(action);
   }
 }
 
+function focusWorkbenchSection(element) {
+  if (!element) return;
+  element.setAttribute("tabindex", "-1");
+  element.focus({ preventScroll: true });
+  element.scrollIntoView({ block: "start" });
+}
+
+function openWorkbenchView(button) {
+  const blueprint = document.querySelector("#student-form");
+  if (blueprint && !saveBlueprint(blueprint)) return;
+  const fromBlueprintFooter = button.closest(".blueprint-footer");
+  studentActiveView = button.dataset.studentView;
+  renderPage();
+  if (fromBlueprintFooter) focusWorkbenchSection(document.querySelector("#workbench-live-test h2"));
+  else document.querySelector(`#workbench-tab-${studentActiveView}`)?.focus({ preventScroll: true });
+}
+
 function bindStudentPage() {
+  const workbench = document.querySelector(".student-workbench");
+  if (!workbench) return;
   bindBlueprint();
+  workbench.querySelector("#workbench-project").addEventListener("change", event => {
+    openProject(event.currentTarget.value);
+    document.querySelector("#workbench-project")?.focus({ preventScroll: true });
+  });
+  workbench.querySelector("#workbench-phase").addEventListener("change", event => {
+    const select = event.currentTarget;
+    const previous = state.project;
+    const phase = select.value;
+    if (!projectStages.includes(phase)) return;
+    state.project = { ...previous, phase, stage: phase };
+    try {
+      saveState();
+      showToast("项目阶段已同步到项目卡片");
+    } catch {
+      state.project = previous;
+      select.value = previous.phase;
+      showToast("暂时无法保存项目阶段，请重试。");
+    }
+  });
   const validationForm = document.querySelector("#student-validation-form");
   validationForm?.addEventListener("change", event => storeStudentProject(event.currentTarget));
   validationForm?.addEventListener("submit", event => { event.preventDefault(); saveStudentProject(event.currentTarget); });
-  document.querySelectorAll("[data-student-view]").forEach(button => button.addEventListener("click", () => {
-    const blueprint = document.querySelector("#student-form");
-    if (blueprint && !saveBlueprint(blueprint)) return;
-    const fromBlueprintFooter = button.closest(".blueprint-footer");
-    studentActiveView = button.dataset.studentView;
+  workbench.querySelectorAll("[data-student-view]").forEach(button => button.addEventListener("click", () => openWorkbenchView(button)));
+  const tabs = [...workbench.querySelectorAll('[role="tab"]')];
+  workbench.querySelector('[role="tablist"]').addEventListener("keydown", event => {
+    const current = tabs.indexOf(event.target);
+    const target = { ArrowLeft: (current + tabs.length - 1) % tabs.length, ArrowRight: (current + 1) % tabs.length, Home: 0, End: tabs.length - 1 }[event.key];
+    if (target === undefined) return;
+    event.preventDefault();
+    if (target !== current) openWorkbenchView(tabs[target]);
+  });
+  workbench.querySelectorAll("[data-validation-section]").forEach(button => button.addEventListener("click", () => {
+    studentActiveView = "validation";
     renderPage();
-    if (fromBlueprintFooter) document.querySelector("#student-hypothesis")?.focus();
+    focusWorkbenchSection(document.querySelector(`#workbench-${button.dataset.validationSection} h2`));
+  }));
+  workbench.querySelectorAll("[data-run-jump]").forEach(button => button.addEventListener("click", () => {
+    if (studentActiveView !== "validation") {
+      studentActiveView = "validation";
+      renderPage();
+    }
+    const record = document.getElementById(button.dataset.runJump);
+    if (!record) return;
+    record.open = true;
+    focusWorkbenchSection(record.querySelector("summary"));
+    record.querySelector("summary").removeAttribute("tabindex");
+  }));
+  workbench.querySelectorAll("[data-start-validation]").forEach(button => button.addEventListener("click", () => {
+    const kind = button.dataset.startValidation;
+    if (kind === "spark") currentSparkResult = null;
+    else currentMirrorResult = null;
+    navigate(kind);
+    document.querySelector(`#${kind}-form textarea`)?.focus({ preventScroll: true });
   }));
   document.querySelectorAll("[data-readiness-action]").forEach(button => button.addEventListener("click", () => handleReadinessAction(button.dataset.readinessAction)));
   document.querySelectorAll("[data-deliverable]").forEach(input => input.addEventListener("change", () => {
-    state.submissionChecklist = { ...(state.submissionChecklist || {}), [input.dataset.deliverable]: input.checked };
-    saveState();
+    const key = input.dataset.deliverable;
+    const previous = state.submissionChecklist;
+    state.submissionChecklist = { ...previous, [key]: input.checked };
+    try {
+      saveState();
+    } catch {
+      state.submissionChecklist = previous;
+      input.checked = Boolean(previous?.[key]);
+      return showToast("清单暂时无法保存，请重试。");
+    }
     renderPage();
+    document.querySelector(`[data-deliverable="${key}"]`)?.focus({ preventScroll: true });
   }));
 }
 
@@ -539,6 +717,7 @@ function exportStudentProject() {
   const legacyPersonaNote = legacyPersonas.length ? `\n\n旧版项目重点人群：${legacyPersonas.map(item => item.name).join("、")}。` : "";
   const ledger = getEvidenceLedger(project).map(item => `- [${item.type}] ${item.title}（${item.status}，记录 ID ${item.id}）`).join("\n") || "尚无记录。";
   const reports = latestStudentReports().map(({ kind, report }) => report ? `- ${kind}：${report.title}（报告 ID ${report.id}）。${report.desc}` : `- ${kind}：尚未运行。`).join("\n");
+  const submission = submissionItems.map(([key, title]) => `- [${state.submissionChecklist?.[key] ? "x" : " "}] ${title}`).join("\n");
   const linkedMirrorPlan = state.mirrorRuns.find(run => run.id === state.mirrorValidationRunId);
   const mirrorSource = linkedMirrorPlan ? `关联的 Mirror 测试计划：${linkedMirrorPlan.title}（记录 ID ${linkedMirrorPlan.id}）\n\n` : "";
   const body = `# ${state.project.name} · PersonaLab 科创项目打磨记录
@@ -574,11 +753,15 @@ ${ledger}
 ## 最近推演报告
 
 ${reports}
+
+## 参赛材料准备清单
+
+${submission}
 `;
   const url = URL.createObjectURL(new Blob([body], { type: "text/markdown;charset=utf-8" }));
   const link = document.createElement("a");
   link.href = url;
-  link.download = "PersonaLab-V2.0-科创项目打磨记录.md";
+  link.download = `${state.project.name.replace(/[\\/:*?"<>|]/g, "-")}-科创项目打磨记录.md`;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   showToast("打磨记录已导出");

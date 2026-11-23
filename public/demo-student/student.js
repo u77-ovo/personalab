@@ -47,8 +47,7 @@ const studentSample = {
   testPlan: "邀请有临时调课经历的同学，使用同一组虚构任务分别手动重排和使用原型重排，记录完成时间、遗漏项和理由理解度。",
   testResult: "",
   iterationPlan: "",
-  materialId: "",
-  focusPersonas: ["p1", "p2", "p3"]
+  materialId: ""
 };
 
 const personaPainPrompts = {
@@ -60,13 +59,20 @@ const personaPainPrompts = {
   p6: { concern: "部署成本、责任边界和维护方式不清楚", observe: "能否说清谁负责、需要哪些资源，以及出现错误时如何处理" }
 };
 
+function getRunPersonas(source) {
+  const personas = new Map();
+  for (const run of [...source.sparkRuns, ...source.mirrorRuns]) {
+    for (const persona of run.personas || []) personas.set(persona.id, persona);
+  }
+  return [...personas.values()];
+}
+
 let studentActiveView = "overview";
 
 function getStudentProject(source = state) {
   return {
     ...(source.isSample ? studentSample : {}),
-    ...(source.studentProject || {}),
-    focusPersonas: source.studentProject?.focusPersonas || (source.isSample ? studentSample.focusPersonas : [])
+    ...(source.studentProject || {})
   };
 }
 
@@ -87,9 +93,9 @@ function getReadiness(project = getStudentProject(), source = state) {
     { id: "problem", label: "问题定义", short: "说明用户、场景和现有做法", done: hasStudentFields(project, "audience", "problem"), action: "canvas" },
     { id: "evidence", label: "需求证据", short: "关联至少一条脱敏真实资料", done: hasOwnEvidence(source), action: "materials" },
     { id: "solution", label: "方案边界", short: "写清产品方案和它与现有做法的差异", done: hasSolutionDetails(project), action: "canvas" },
-    { id: "persona", label: "人群视角", short: "选择至少三类重点 Persona", done: project.focusPersonas.length >= 3, action: "personas" },
     { id: "spark", label: "需求探索", short: "完成一轮 Spark 假设梳理", done: source.sparkRuns.length > 0, action: "spark" },
     { id: "mirror", label: "原型预演", short: "完成一轮 Mirror 任务走查", done: source.mirrorRuns.length > 0, action: "mirror" },
+    { id: "persona", label: "人群视角", short: "在一轮 Spark 或 Mirror 中记录参与人群", done: getRunPersonas(source).length > 0, action: "spark" },
     { id: "plan", label: "真人测试", short: "确定假设、统一任务、样本和成功指标", done: hasStudentFields(project, "hypothesis", "testTask", "testPlan", "successMetric"), action: "validation" },
     { id: "result", label: "验证闭环", short: "录入真实观察与证据触发的改动", done: hasStudentFields(project, "testResult", "iterationPlan"), action: "validation" }
   ];
@@ -100,6 +106,7 @@ function getReadiness(project = getStudentProject(), source = state) {
 function getStudentReview(project = getStudentProject()) {
   const linkedMaterial = state.materials.find(item => item.id === project.materialId);
   const linkedOwnEvidence = linkedMaterial && !linkedMaterial.isSample && linkedMaterial.content?.trim() && linkedMaterial.content !== "未填写内容摘要";
+  const participantCount = getRunPersonas(state).length;
   return [
     {
       title: "问题是否来自真实使用情境？",
@@ -118,11 +125,11 @@ function getStudentReview(project = getStudentProject()) {
         : "写明方案如何改善关键步骤，以及它与现有做法的差异。"
     },
     {
-      title: "是否覆盖不同人群的关键顾虑？",
-      ready: project.focusPersonas.length >= 3,
-      detail: project.focusPersonas.length >= 3
-        ? `已选择 ${project.focusPersonas.length} 类重点 Persona，下一步把关注点写进测试任务。`
-        : "至少选择三类差异明显的 Persona，比较共识、分歧与使用障碍。"
+      title: "是否记录了每轮的用户视角？",
+      ready: participantCount > 0,
+      detail: participantCount
+        ? `工具记录覆盖 ${participantCount} 类 Persona，可在各轮报告中查看人选。`
+        : "进入 Spark 或 Mirror 时，按本轮问题勾选相关 Persona。"
     },
     {
       title: "是否形成真实验证闭环？",
@@ -185,7 +192,8 @@ function renderStudent() {
       </div>
       <div class="heading-actions">
         <button class="button button-secondary" type="button" data-export-student>导出打磨记录</button>
-        <button class="button button-primary" type="button" data-go="spark">开始需求探索 →</button>
+        <button class="button button-primary" type="button" data-go="spark">Spark 需求探索</button>
+        <button class="button button-secondary" type="button" data-go="mirror">Mirror 原型预演</button>
       </div>
     </div>
     <div class="student-boundary-note">
@@ -196,23 +204,23 @@ function renderStudent() {
     ${renderStageRail(readiness)}
     <div class="student-view-tabs" role="tablist" aria-label="项目打磨视图">
       ${[
-        ["overview", "项目总览"], ["canvas", "项目蓝图"], ["personas", "Persona 痛点"], ["validation", "验证冲刺"], ["delivery", "提交中心"]
+        ["overview", "项目总览"], ["canvas", "项目蓝图"], ["validation", "验证冲刺"], ["delivery", "提交中心"]
       ].map(([id, label]) => `<button type="button" role="tab" class="student-view-tab ${studentActiveView === id ? "active" : ""}" data-student-view="${id}" aria-selected="${studentActiveView === id}">${label}</button>`).join("")}
     </div>
     <section class="student-view-panel">
-      ${studentActiveView === "canvas" ? renderCanvasView(project) : studentActiveView === "personas" ? renderPersonaView(project) : studentActiveView === "validation" ? renderValidationView(project) : studentActiveView === "delivery" ? renderDeliveryView(project) : renderOverviewView(project, readiness)}
+      ${studentActiveView === "canvas" ? renderCanvasView(project) : studentActiveView === "validation" ? renderValidationView(project) : studentActiveView === "delivery" ? renderDeliveryView(project) : renderOverviewView(project, readiness)}
     </section>`;
 }
 
 function renderStageRail(readiness) {
   const stages = [
-    ["problem", "01", "定义问题"], ["evidence", "02", "补充证据"], ["persona", "03", "选择人群"],
-    ["spark", "04", "探索假设"], ["mirror", "05", "预演原型"], ["result", "06", "形成闭环"]
+    ["problem", "项目蓝图"], ["evidence", "需求资料"],
+    ["spark", "Spark 探索"], ["mirror", "Mirror 预演"], ["result", "验证冲刺"]
   ];
-  return `<div class="stage-rail" aria-label="验证流程">
-    ${stages.map(([id, index, label], position) => {
+  return `<div class="stage-rail" aria-label="项目工具">
+    ${stages.map(([id, label]) => {
       const milestone = readiness.milestones.find(item => item.id === id);
-      return `${position ? `<span class="stage-connector ${milestone.done ? "done" : ""}"></span>` : ""}<button type="button" class="stage-step ${milestone.done ? "done" : ""}" data-readiness-action="${milestone.action}"><span>${milestone.done ? "✓" : index}</span><strong>${label}</strong></button>`;
+      return `<button type="button" class="stage-step ${milestone.done ? "done" : ""}" data-readiness-action="${milestone.action}"><span aria-hidden="true">${milestone.done ? "✓" : "·"}</span><strong>${label}</strong></button>`;
     }).join("")}
   </div>`;
 }
@@ -314,18 +322,6 @@ function renderCanvasView(project) {
 function renderStudentField(field, project) {
   const hint = field.key === "testResult" ? "真实测试后填写" : field.optional ? "选填" : "";
   return `<div class="form-group student-form-wide"><label class="form-label" for="student-${field.key}">${field.label}${hint ? ` <small>${hint}</small>` : ""}</label><textarea class="textarea" id="student-${field.key}" name="${field.key}" rows="3" maxlength="1600" placeholder="${field.placeholder}">${escapeHTML(project[field.key] || "")}</textarea></div>`;
-}
-
-function renderPersonaView(project) {
-  const selected = new Set(project.focusPersonas);
-  return `
-    <div class="persona-view-heading"><div><span class="student-card-kicker">PAIN MAP</span><h2>不同人群的痛点与观察问题</h2><p>选择本项目需要重点覆盖的人群。Persona 用于扩展思考范围，结论仍需真人验证。</p></div><div><strong>${selected.size}</strong><small>已选重点人群</small></div></div>
-    <div class="persona-pain-grid">${state.personas.map(persona => {
-      const prompt = personaPainPrompts[persona.id] || { concern: persona.desc, observe: "围绕真实使用情境设计一个可观察任务" };
-      const isSelected = selected.has(persona.id);
-      return `<article class="card persona-pain-card ${isSelected ? "selected" : ""}"><button type="button" class="persona-select-button" data-toggle-persona="${escapeHTML(persona.id)}" aria-pressed="${isSelected}"><span>${isSelected ? "✓ 已选" : "＋ 设为重点"}</span></button><div class="persona-pain-top"><span class="persona-large-avatar" style="background:${persona.color}">${escapeHTML(persona.short)}</span><div><span class="tag ${persona.type === "平台预设" ? "tag-purple" : "tag-green"}">${escapeHTML(persona.type)}</span><h3>${escapeHTML(persona.name)}</h3></div></div><div class="pain-block"><small>可能痛点</small><p>${escapeHTML(prompt.concern)}</p></div><div class="pain-block observe"><small>测试时观察</small><p>${escapeHTML(prompt.observe)}</p></div><div class="trait-list">${persona.traits.map(trait => `<span class="trait">${escapeHTML(trait)}</span>`).join("")}</div></article>`;
-    }).join("")}</div>
-    <div class="persona-view-footer"><div><strong>项目有更具体的人群？</strong><p>创建自定义 Persona，写清目标、情境、行为特点和主要顾虑。</p></div><button class="button button-secondary" type="button" data-open-modal="persona">＋ 创建自定义 Persona</button><button class="button button-primary" type="button" data-go="spark">带着这些人群运行 Spark →</button></div>`;
 }
 
 function renderValidationView(project) {
@@ -478,17 +474,8 @@ function bindBlueprint() {
   }));
 }
 
-function toggleFocusPersona(personaId) {
-  const project = getStudentProject();
-  const selected = new Set(project.focusPersonas);
-  if (selected.has(personaId)) selected.delete(personaId); else selected.add(personaId);
-  state.studentProject = { ...project, focusPersonas: [...selected] };
-  saveState();
-  renderPage();
-}
-
 function handleReadinessAction(action) {
-  if (["overview", "canvas", "personas", "validation", "delivery"].includes(action)) {
+  if (["overview", "canvas", "validation", "delivery"].includes(action)) {
     studentActiveView = action;
     renderPage();
   } else {
@@ -510,7 +497,6 @@ function bindStudentPage() {
     if (fromBlueprintFooter) document.querySelector("#student-hypothesis")?.focus();
   }));
   document.querySelectorAll("[data-readiness-action]").forEach(button => button.addEventListener("click", () => handleReadinessAction(button.dataset.readinessAction)));
-  document.querySelectorAll("[data-toggle-persona]").forEach(button => button.addEventListener("click", () => toggleFocusPersona(button.dataset.togglePersona)));
   document.querySelectorAll("[data-deliverable]").forEach(input => input.addEventListener("change", () => {
     state.submissionChecklist = { ...(state.submissionChecklist || {}), [input.dataset.deliverable]: input.checked };
     saveState();
@@ -524,7 +510,8 @@ function exportStudentProject() {
   const project = getStudentProject();
   const readiness = getReadiness(project);
   const linkedMaterial = state.materials.find(item => item.id === project.materialId);
-  const selectedPersonas = state.personas.filter(item => project.focusPersonas.includes(item.id));
+  const usedPersonas = getRunPersonas(state);
+  const legacyPersonas = state.personas.filter(item => state.studentProject?.focusPersonas?.includes(item.id));
   const materialRecord = linkedMaterial
     ? `- 标题：${linkedMaterial.title}\n- 来源：${linkedMaterial.source}\n- 资料 ID：${linkedMaterial.id}\n\n> ${linkedMaterial.content}\n\n${linkedMaterial.isSample ? "这条记录是内置演练资料。" : "以上为用户录入资料，提交前需回看原始来源并确认脱敏。"}`
     : "尚未关联核心需求来源。";
@@ -535,10 +522,8 @@ function exportStudentProject() {
   const fields = blueprintSteps.map(step => `### ${step.title}\n\n${step.fields.map(key => fieldSummary(key, 4)).join("\n\n")}`).join("\n\n");
   const validation = validationFieldKeys.slice(2).map(key => fieldSummary(key, 3)).join("\n\n");
   const milestones = readiness.milestones.map(item => `- ${item.done ? "已完成" : "待完成"} · ${item.label}：${item.short}`).join("\n");
-  const personaRows = selectedPersonas.length ? selectedPersonas.map(item => {
-    const prompt = personaPainPrompts[item.id] || { concern: item.desc, observe: "设计一个真实任务进行观察" };
-    return `- **${item.name}**：${prompt.concern}。验证时观察：${prompt.observe}。`;
-  }).join("\n") : "尚未选择重点 Persona。";
+  const personaRows = usedPersonas.length ? usedPersonas.map(item => `- ${item.name}`).join("\n") : "尚未记录参与推演的人群。";
+  const legacyPersonaNote = legacyPersonas.length ? `\n\n旧版项目重点人群：${legacyPersonas.map(item => item.name).join("、")}。` : "";
   const ledger = getEvidenceLedger(project).map(item => `- [${item.type}] ${item.title}（${item.status}，记录 ID ${item.id}）`).join("\n") || "尚无记录。";
   const reports = latestStudentReports().map(({ kind, report }) => report ? `- ${kind}：${report.title}（报告 ID ${report.id}）。${report.desc}` : `- ${kind}：尚未运行。`).join("\n");
   const body = `# ${state.project.name} · PersonaLab 科创项目打磨记录
@@ -563,9 +548,9 @@ ${validation}
 
 ${materialRecord}
 
-## 重点 Persona 与痛点
+## 工具记录中的 Persona
 
-${personaRows}
+${personaRows}${legacyPersonaNote}
 
 ## 证据、假设与预演台账
 

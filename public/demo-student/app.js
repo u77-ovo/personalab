@@ -192,8 +192,9 @@ function syncResumeButton() {
   const resumeProject = hasSavedProject(state) && !state.project.archived
     ? state
     : projectLibrary.find(item => !item.project.archived);
-  button.hidden = !resumeProject;
-  if (resumeProject) button.textContent = `继续：${resumeProject.project.name}`;
+  button.hidden = !resumeProject && !projectLibrary.length;
+  button.firstChild.textContent = resumeProject ? "继续项目 " : "项目总览 ";
+  button.title = resumeProject ? `继续 ${resumeProject.project.name}` : "查看项目总览";
 }
 
 function hasSavedProject() {
@@ -232,19 +233,21 @@ function showWorkspace() {
 
 function enterDemo(mode = "resume", destination) {
   if (mode === "sample") {
-    state = sampleState();
-    currentSparkResult = null;
-    currentMirrorResult = null;
-    saveState();
-  } else {
-    if (!hasSavedProject(state) || state.project.archived) {
-      state = normalizeStoredState(projectLibrary.find(item => !item.project.archived) || initialState());
+    const savedSample = projectLibrary.find(item => item.isSample && !item.project.archived);
+    if (savedSample) {
+      state = normalizeStoredState(savedSample);
+    } else {
+      state = sampleState();
+      saveState();
     }
-    currentSparkResult = state.sparkRuns[0] || null;
-    currentMirrorResult = state.mirrorRuns[0] || null;
+  } else if (!hasSavedProject(state) || state.project.archived) {
+    state = normalizeStoredState(projectLibrary.find(item => !item.project.archived) || initialState());
   }
+  currentSparkResult = state.sparkRuns[0] || null;
+  currentMirrorResult = state.mirrorRuns[0] || null;
   showWorkspace();
   navigate(destination || state.activePage || "workspace");
+  document.querySelector("#page-content").focus({ preventScroll: true });
 }
 
 function setMenuOpen(open, restoreFocus = false) {
@@ -261,6 +264,7 @@ function showLanding() {
   document.querySelector("#landing").hidden = false;
   setMenuOpen(false);
   syncResumeButton();
+  document.querySelector("#home-title").focus({ preventScroll: true });
   window.scrollTo({ top: 0 });
 }
 
@@ -1220,9 +1224,15 @@ function downloadReport(id) {
 }
 
 document.addEventListener("click", e => {
-  const action = e.target.closest("[data-action]")?.dataset.action;
+  const trigger = e.target.closest("[data-action]");
+  const action = trigger?.dataset.action;
   if (!action) return;
-  if (action === "enter-sample") enterDemo("sample");
+  if (action === "enter-sample") {
+    const view = trigger.dataset.samplePage;
+    studentActiveView = view === "test" ? "validation" : "overview";
+    enterDemo("sample", view === "spark" || view === "mirror" ? view : "student");
+    if (view === "test") focusWorkbenchSection(document.querySelector("#workbench-live-test h2"));
+  }
   if (action === "enter-empty") openProjectWizard();
   if (action === "resume-demo") enterDemo("resume");
   if (action === "show-landing") showLanding();
@@ -1271,7 +1281,8 @@ document.addEventListener("keydown", event => {
 
 document.querySelectorAll("[data-nav]").forEach(el => el.addEventListener("click", e => { e.preventDefault(); navigate(el.dataset.nav); }));
 syncResumeButton();
-if (projectLibrary.length) {
+const directHome = new URLSearchParams(location.search).get("view") === "home" || ["#landing", "#case-preview", "#workflow", "#about", "#features"].includes(location.hash);
+if (projectLibrary.length && !directHome) {
   enterDemo("resume", "workspace");
 }
 

@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="./student-blue.css?v=2.3" />
     <link rel="stylesheet" href="./student-polish.css?v=2.7" />
     <link rel="stylesheet" href="./student-workbench.css?v=2.8" />
-    <link rel="stylesheet" href="./student-home.css?v=2.9.3" />
+    <link rel="stylesheet" href="./student-home.css?v=2.9.4" />
   </head>
   <body>
     <main id="landing" class="landing student-home">
@@ -92,9 +92,9 @@
       <section class="home-wrap home-workflow" id="workflow" aria-labelledby="workflow-title">
         <h2 id="workflow-title">从调研到参赛材料</h2>
         <ol>
-          <li><span class="home-flow-icon home-flow-spark"><svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#spark"></use></svg></span><h3>先弄清用户为什么卡住</h3><p>保存访谈、问卷和观察记录，选定本轮的 Persona，用 Spark 把分歧整理成待验证假设。</p><a href="#case-preview" data-preview-link="spark">看需求探索示例 <svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#open"></use></svg></a></li>
-          <li><span class="home-flow-icon"><svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#mirror"></use></svg></span><h3>用原型走一遍关键任务</h3><p>把操作步骤交给 Mirror 预演，找出需要观察的卡点，准备下一轮真人测试。</p><a href="#case-preview" data-preview-link="mirror">看原型预演示例 <svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#open"></use></svg></a></li>
-          <li><span class="home-flow-icon"><svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#validate"></use></svg></span><h3>记录测试结果和改动依据</h3><p>把参与者的行为、失败案例和对应的修改写进工作台，再带到提交中心整理。</p><a href="#case-preview" data-preview-link="test">看真人验证计划 <svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#open"></use></svg></a></li>
+          <li><span class="home-flow-icon home-flow-spark"><svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#spark"></use></svg></span><h3>Spark · 需求探索</h3><p>写下用户遇到的困难，勾选要比较的人群。Spark 会整理各类 Persona 可能在意的问题、待验证假设和可以继续追问的方向。</p><a href="#case-preview" data-preview-link="spark">看需求探索示例 <svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#open"></use></svg></a></li>
+          <li><span class="home-flow-icon"><svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#mirror"></use></svg></span><h3>Mirror · 原型预演</h3><p>写下原型操作步骤、用户任务和完成标准。Mirror 会按所选人群整理潜在卡点，给出可以带去真人测试的观察点。</p><a href="#case-preview" data-preview-link="mirror">看原型预演示例 <svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#open"></use></svg></a></li>
+          <li><span class="home-flow-icon"><svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#validate"></use></svg></span><h3>真人测试与参赛材料</h3><p>把 Mirror 的任务带入真人测试，记录哪些人在哪一步卡住、团队因此做了什么改动。提交前可导出项目打磨记录。</p><a href="#case-preview" data-preview-link="test">看真人验证计划 <svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#open"></use></svg></a></li>
         </ol>
       </section>
 
@@ -118,10 +118,16 @@
 
       <section class="home-wrap home-persona" id="persona-intro" aria-labelledby="persona-intro-title">
         <div>
-          <p class="home-product">AI Persona</p>
-          <h2 id="persona-intro-title">同一个任务，换个用户视角</h2>
-          <p>给虚拟用户设定目标、习惯和使用限制，再结合访谈或问卷补充画像。选几种不同的 Persona，用 Spark 梳理各人群可能在意的问题，再带到真人访谈中核对。</p>
-          <a href="#case-preview" data-preview-link="spark">看 Spark 怎样整理需求 <svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#open"></use></svg></a>
+          <h2 id="persona-intro-title">按项目自定义 AI Persona</h2>
+          <p>同一个任务，不同人群在意的细节可能不同。你可以选用平台预设，也可以为自己的项目创建虚拟用户画像。</p>
+          <dl class="home-persona-steps">
+            <div><dt>创建画像</dt><dd>为每类人群填写名称、目标、使用情境和主要顾虑，补上行为特点或特征标签。</dd></div>
+            <div><dt>同题对照</dt><dd>运行 Spark 或 Mirror 时，勾选本轮要看的一个或多个人群，比较各自可能遇到的问题。</dd></div>
+          </dl>
+          <div class="home-persona-actions">
+            <button class="button button-secondary" type="button" data-action="enter-sample" data-sample-page="personas">在示例里创建 Persona <svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#open"></use></svg></button>
+            <a href="#case-preview" data-preview-link="spark">看 Spark 示例 <svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#open"></use></svg></a>
+          </div>
         </div>
         <article class="home-persona-board" aria-labelledby="persona-board-title">
           <header><span class="home-flow-icon home-flow-spark"><svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#persona"></use></svg></span><div><h3 id="persona-board-title">临时来了新作业，你最在意什么？</h3><p>校园 AI 学习助手 · 示例中的虚拟用户</p></div></header>
@@ -139,8 +145,8 @@
 
       <section class="home-wrap home-features" id="features" aria-labelledby="features-title">
         <div class="home-feature-intro">
-          <h2 id="features-title">工作台里能做什么</h2>
-          <p>从一个待验证的想法开始，把本项目的用户画像、资料、测试和提交材料积累在一起。</p>
+          <h2 id="features-title">每一轮验证，都有记录可回查</h2>
+          <p>资料、画像、报告和真人测试都保存在各自的项目中。可以按时间找到某一轮的原始问题、参与画像和预演结果，再对照真人记录说明为什么改。</p>
         </div>
         <div class="home-feature-list">
           <details name="home-feature" open>
@@ -148,7 +154,7 @@
             <p>沿着项目背景、目标人群、使用场景和核心痛点逐步记录。已有原型时，可以继续补齐方案差异、验证假设和成功标准。蓝图填写时会自动保存。</p>
           </details>
           <details name="home-feature">
-            <summary><span class="home-flow-icon home-flow-spark"><svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#persona"></use></svg></span><span><strong>AI Persona 与项目证据库</strong><small>选定本轮视角，给推演保留来源</small></span></summary>
+            <summary><span class="home-flow-icon home-flow-spark"><svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#persona"></use></svg></span><span><strong>AI Persona 与项目证据库</strong><small>自定义人群，保留调研资料的来源</small></span></summary>
             <p>按项目创建自定义 Persona，也可以选用预设人群。把访谈记录、问卷摘要或文件放到对应项目的证据库，给导入的原件补上摘要后，Spark 可引用这些文字资料。</p>
           </details>
           <details name="home-feature">
@@ -201,6 +207,6 @@
     <script src="./student-evidence.js?v=2.8"></script>
     <script src="./student.js?v=2.8"></script>
     <script src="./student-home.js?v=2.9.3"></script>
-    <script src="./app.js?v=2.9.3"></script>
+    <script src="./app.js?v=2.9.4"></script>
   </body>
 </html>

@@ -1230,7 +1230,8 @@ document.addEventListener("click", e => {
   if (action === "enter-sample") {
     const view = trigger.dataset.samplePage;
     studentActiveView = view === "test" ? "validation" : "overview";
-    enterDemo("sample", view === "spark" || view === "mirror" ? view : "student");
+    enterDemo("sample", ["spark", "mirror", "personas"].includes(view) ? view : "student");
+    if (view === "personas") openModal("persona");
     if (view === "test") focusWorkbenchSection(document.querySelector("#workbench-live-test h2"));
   }
   if (action === "enter-empty") openProjectWizard();

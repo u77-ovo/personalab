@@ -160,9 +160,14 @@
 .home-trace li:nth-child(2)::before { background: #df8b55; }
 .home-trace p { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: 1.65; }
 
-.home-persona .home-product { margin-bottom: 10px; }
-.home-persona > div > a { display: inline-flex; align-items: center; gap: 5px; min-height: 40px; margin-top: 8px; color: var(--blue); font-size: var(--text-sm); font-weight: 650; }
-.home-persona > div > a:hover { text-decoration: underline; text-underline-offset: 4px; }
+.home-persona-steps { display: grid; gap: 9px; margin: 15px 0 0; font-size: var(--text-sm); }
+.home-persona-steps div { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px; }
+.home-persona-steps dt { color: var(--navy); font-weight: 700; }
+.home-persona-steps dd { margin: 0; color: var(--muted); line-height: 1.65; }
+.home-persona-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 13px; margin-top: 16px; }
+.home-persona-actions :is(a, button) { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); }
+.home-persona-actions a { min-height: 40px; color: var(--blue); font-weight: 650; }
+.home-persona-actions a:hover { text-decoration: underline; text-underline-offset: 4px; }
 .home-persona-board { padding: clamp(13px, 2vw, 22px); border: 1px solid var(--line); border-radius: var(--panel-radius); background: linear-gradient(140deg, #fff, #fbfdff); box-shadow: var(--shadow-soft); }
 .home-persona-board header { display: flex; align-items: center; gap: 10px; margin-bottom: 13px; }
 .home-persona-board header .home-flow-icon { flex: 0 0 34px; }

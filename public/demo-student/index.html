@@ -6,74 +6,151 @@
     <meta name="description" content="PersonaLab V2.0-student，面向科创团队的需求洞察、Persona 痛点分析、原型预演、真人验证与比赛材料整理工作台。" />
     <meta name="theme-color" content="#1769ff" />
     <title>PersonaLab V2.0-student · 学生科创验证工作台</title>
-    <link rel="preload" as="image" href="./assets/personalab-logo.png" />
-    <link rel="preload" as="image" href="./assets/personalab-xiaop.webp" type="image/webp" />
+    <link rel="icon" href="./assets/personalab-logo-icon.png" />
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./student-blue.css?v=2.3" />
     <link rel="stylesheet" href="./student-polish.css?v=2.7" />
     <link rel="stylesheet" href="./student-workbench.css?v=2.8" />
+    <link rel="stylesheet" href="./student-home.css?v=2.9" />
   </head>
   <body>
-    <main id="landing" class="landing student-landing">
-      <nav class="landing-nav">
-        <a class="brand brand-landing" href="#" aria-label="PersonaLab Student 首页">
-          <img class="brand-wordmark" src="./assets/personalab-logo.png" alt="PersonaLab" />
-          <span class="student-edition">STUDENT</span>
-        </a>
-        <div class="landing-nav-right">
-          <button id="resume-button" class="button button-ghost" data-action="resume-demo" hidden>继续上次项目</button>
-          <button class="button button-ghost" data-action="enter-empty">新建项目</button>
+    <main id="landing" class="landing student-home">
+      <header class="home-header">
+        <div class="home-wrap home-nav">
+          <a class="home-brand" href="#landing" aria-label="PersonaLab 学生版首页"><img src="./assets/personalab-student-logo.webp" alt="PersonaLab 学生版" width="164" height="55" /></a>
+          <nav class="home-nav-links" aria-label="首页导航"><a href="#case-preview">案例预览</a><a href="#workflow">验证流程</a><a href="#features">工作台功能</a></nav>
+          <button id="resume-button" class="button button-secondary" type="button" data-action="resume-demo" hidden>继续项目 <span aria-hidden="true">↗</span></button>
         </div>
-      </nav>
+      </header>
 
-      <section class="hero student-hero">
-        <div class="hero-copy">
-          <p class="hero-label">科创团队验证工作台</p>
-          <h1>让好创意，<span>经得起验证。</span></h1>
-          <p class="hero-lead">梳理不同人群的需求与痛点，预演原型。把真人测试与迭代依据整理成参赛材料。</p>
-          <div class="hero-actions">
-            <button class="button button-primary button-large" data-action="enter-empty">创建科创项目 <span aria-hidden="true">→</span></button>
-            <button class="button button-secondary button-large" data-action="enter-sample">体验完整案例</button>
+      <section class="home-intro" aria-labelledby="home-title">
+        <div class="home-wrap home-intro-layout">
+          <div class="home-copy">
+            <p class="home-product">PersonaLab · 学生科创验证工作台</p>
+            <h1 id="home-title" tabindex="-1"><span>让好创意，</span><span>经得起验证。</span></h1>
+            <p class="home-lead">以真实用户诉求为基准，通过为不同人群配置 <span>AI Persona（虚拟用户）</span>仿真，支持产品早期需求挖掘与原型可用性检验的用户验证平台与科创工作台。</p>
+            <div class="home-actions">
+              <button class="button button-primary" type="button" data-action="enter-empty">创建科创项目 <span aria-hidden="true">→</span></button>
+              <button class="button button-secondary" type="button" data-action="enter-sample">体验示例项目</button>
+            </div>
+            <p class="home-storage">无需注册 · 项目保存在当前浏览器</p>
           </div>
-          <div class="hero-trust">
-            <span><b>✓</b> 无需注册</span>
-            <span><b>✓</b> 本地保存</span>
-            <span><b>✓</b> 假设与证据分开</span>
-          </div>
-        </div>
 
-        <div class="hero-visual student-hero-visual" aria-label="PersonaLab Student 验证闭环预览">
-          <div class="blue-orbit orbit-one" aria-hidden="true"></div>
-          <div class="blue-orbit orbit-two" aria-hidden="true"></div>
-          <article class="student-hero-board">
-            <header><div><span class="pulse-dot" aria-hidden="true"></span><small>示例项目</small></div><span class="board-status">验证进行中</span></header>
-            <p class="board-kicker">校园 AI 学习助手</p>
-            <h2>临时任务出现时，学生能否更快完成重排？</h2>
-            <div class="board-progress" aria-hidden="true"><span style="width: 62%"></span></div>
-            <div class="board-metrics"><div><strong>3</strong><small>重点人群</small></div><div><strong>2</strong><small>来源资料</small></div><div><strong>1</strong><small>待测假设</small></div></div>
-            <div class="board-next"><span>下一步</span><b>用 Mirror 走查核心任务 →</b></div>
+          <article class="home-case-stage" id="case-preview" aria-labelledby="case-title">
+          <div class="home-case">
+            <header class="home-case-header">
+              <div><h2 id="case-title">校园 AI 学习助手</h2><p>临时任务打乱原计划，学生怎样重新安排？</p></div>
+              <span class="tag tag-gray">示例预览</span>
+            </header>
+            <div class="home-case-tabs" role="tablist" aria-label="示例项目的验证步骤">
+              <button type="button" role="tab" id="case-tab-spark" aria-selected="true" aria-controls="case-spark" data-case-tab="spark"><span aria-hidden="true">✦</span> Spark</button>
+              <button type="button" role="tab" id="case-tab-mirror" aria-selected="false" aria-controls="case-mirror" tabindex="-1" data-case-tab="mirror"><span aria-hidden="true">◫</span> Mirror</button>
+              <button type="button" role="tab" id="case-tab-test" aria-selected="false" aria-controls="case-test" tabindex="-1" data-case-tab="test">真人验证</button>
+            </div>
+            <div class="home-case-panel" id="case-spark" role="tabpanel" aria-labelledby="case-tab-spark">
+              <p class="home-panel-label">需求探索 <span class="tag tag-orange">待验证假设</span></p>
+              <h3>先说明任务冲突，<span>学生</span>会更容易做决定吗？</h3>
+              <div class="home-perspectives">
+                <div><span aria-hidden="true">新</span><div><strong>第一次使用</strong><p>我想先看懂原计划为什么要改。</p></div></div>
+                <div><span aria-hidden="true">效</span><div><strong>经常调整计划</strong><p>我想直接看到冲突和可选时间。</p></div></div>
+              </div>
+              <details class="home-evidence"><summary>查看示例资料</summary><blockquote>如果临时新增作业，我希望能直接看到它和已有任务在哪些时段冲突。</blockquote><p>内置访谈片段 · 用于流程演示</p></details>
+            </div>
+            <div class="home-case-panel" id="case-mirror" role="tabpanel" aria-labelledby="case-tab-mirror" hidden>
+              <p class="home-panel-label">原型预演 <span class="tag tag-blue">按步骤走查</span></p>
+              <h3>在原型中重排一次当天的计划</h3>
+              <div class="home-path" role="group" aria-label="原型走查步骤">
+                <button type="button" data-case-path="add" aria-pressed="false"><span>1</span> 新增作业</button>
+                <button type="button" data-case-path="conflict" aria-pressed="true"><span>2</span> 查看冲突</button>
+                <button type="button" data-case-path="confirm" aria-pressed="false"><span>3</span> 确认安排</button>
+              </div>
+              <div class="home-path-note" aria-live="polite"><strong>需要观察</strong><p>学生能否从冲突说明中找到受影响的任务，并说清调整的理由？</p></div>
+            </div>
+            <div class="home-case-panel" id="case-test" role="tabpanel" aria-labelledby="case-tab-test" tabindex="0" hidden>
+              <p class="home-panel-label">真人验证计划 <span class="tag tag-gray">待开展</span></p>
+              <h3>用同一组任务测试两种重排方式</h3>
+              <p class="home-test-task">请参与者分别手动调整、使用原型重排同一组计划。不同参与者交替先用哪种方式。</p>
+              <ul class="home-test-measures" aria-label="观察指标"><li>完成用时</li><li>任务遗漏</li><li>能否说出调整理由</li></ul>
+            </div>
+            <footer class="home-case-footer">
+              <small>页面内容为示例，真实结论需要真人测试。</small>
+              <button class="link-button" type="button" data-action="enter-sample" data-case-open>打开 Spark <span aria-hidden="true">↗</span></button>
+            </footer>
+          </div>
           </article>
-          <div class="floating-module floating-spark"><i aria-hidden="true">✦</i><div><strong>Spark</strong><small>从痛点到假设</small></div></div>
-          <div class="floating-module floating-mirror"><i aria-hidden="true">◫</i><div><strong>Mirror</strong><small>从原型到问题</small></div></div>
-          <div class="hero-xiaop student-xiaop"><div class="xiaop-speech"><strong>别急着证明“它很好”</strong><span>先找到一个可以被观察的变化。</span></div><img src="./assets/personalab-xiaop.webp" alt="拿着放大镜的 PersonaLab 小P" /></div>
         </div>
       </section>
 
-      <section class="student-flow" aria-label="科创团队验证路径">
-        <div class="flow-intro"><h2>项目验证流程</h2></div>
-        <div class="flow-track">
-          <article><b>01</b><div><strong>定义场景</strong><small>谁在何时遇到什么阻碍</small></div></article><i>→</i>
-          <article><b>02</b><div><strong>发现分歧</strong><small>不同 Persona 看重什么</small></div></article><i>→</i>
-          <article><b>03</b><div><strong>预演原型</strong><small>核心任务在哪里卡住</small></div></article><i>→</i>
-          <article><b>04</b><div><strong>真人验证</strong><small>观察行为而非只问喜好</small></div></article><i>→</i>
-          <article><b>05</b><div><strong>提交表达</strong><small>用证据讲清改动与价值</small></div></article>
+      <section class="home-wrap home-workflow" id="workflow" aria-labelledby="workflow-title">
+        <h2 id="workflow-title">从调研到参赛材料</h2>
+        <ol>
+          <li><span class="home-flow-icon home-flow-spark" aria-hidden="true">✦</span><h3>先弄清用户为什么卡住</h3><p>保存访谈、问卷和观察记录，选定本轮的 Persona，用 Spark 把分歧整理成待验证假设。</p><a href="#case-preview" data-preview-link="spark">看需求探索示例 <span aria-hidden="true">↑</span></a></li>
+          <li><span class="home-flow-icon" aria-hidden="true">◫</span><h3>用原型走一遍关键任务</h3><p>把操作步骤交给 Mirror 预演，找出需要观察的卡点，准备下一轮真人测试。</p><a href="#case-preview" data-preview-link="mirror">看原型预演示例 <span aria-hidden="true">↑</span></a></li>
+          <li><span class="home-flow-icon" aria-hidden="true">✓</span><h3>记录测试结果和改动依据</h3><p>把参与者的行为、失败案例和对应的修改写进工作台，再带到提交中心整理。</p><a href="#case-preview" data-preview-link="test">看真人验证计划 <span aria-hidden="true">↑</span></a></li>
+        </ol>
+      </section>
+
+      <section class="home-background" id="about" aria-labelledby="about-title">
+        <div class="home-wrap home-background-layout">
+          <div>
+            <p class="home-product">产品背景</p>
+            <h2 id="about-title">每次改动，都有依据可查。</h2>
+            <p>原型已经能演示，团队还要回答：我们为谁解决问题？用户到底卡在哪一步？改动之后有什么变化？</p>
+            <p>PersonaLab 把访谈、问卷、原型预演和真人观察集中到同一个项目中。团队能对照原始资料和最初的假设，也能讲清每一次改动是怎么决定的。</p>
+          </div>
+          <article class="home-trace" aria-labelledby="trace-title">
+            <header><h3 id="trace-title">一条资料怎样推动原型改动</h3><span class="tag tag-gray">案例拆解</span></header>
+            <ol>
+              <li><span class="tag tag-blue">访谈摘录</span><p>“我希望能直接看到它和已有任务在哪些时段冲突。”</p></li>
+              <li><span class="tag tag-orange">待测假设</span><p>先展示受影响的任务，学生会更容易判断要改哪一项。</p></li>
+              <li><span class="tag tag-gray">原型改动</span><p>在确认按钮前加上冲突说明，安排真人走查，记录完成用时和遗漏项。</p></li>
+            </ol>
+          </article>
         </div>
       </section>
+
+      <section class="home-wrap home-features" id="features" aria-labelledby="features-title">
+        <div class="home-feature-intro">
+          <h2 id="features-title">工作台里能做什么</h2>
+          <p>从一个待验证的想法开始，把本项目的用户画像、资料、测试和提交材料积累在一起。</p>
+          <aside class="home-tip" aria-label="小P 的验证提示">
+            <span class="student-mascot" role="img" aria-label="戴蓝色学士帽、拿着放大镜的小P"></span>
+            <div><strong>小P 提醒</strong><p>把“更好用”换成一个能观察的动作，比如“学生能在确认前找到冲突说明”。</p><a href="#case-preview" data-preview-link="test">看真人测试计划 <span aria-hidden="true">↑</span></a></div>
+          </aside>
+        </div>
+        <div class="home-feature-list">
+          <details name="home-feature" open>
+            <summary><span class="home-flow-icon" aria-hidden="true">◇</span><span><strong>项目蓝图</strong><small>写清楚你为谁做、想验证什么</small></span></summary>
+            <p>沿着项目背景、目标人群、使用场景和核心痛点逐步记录。已有原型时，可以继续补齐方案差异、验证假设和成功标准。蓝图填写时会自动保存。</p>
+          </details>
+          <details name="home-feature">
+            <summary><span class="home-flow-icon home-flow-spark" aria-hidden="true">◎</span><span><strong>Persona 与项目证据库</strong><small>选定本轮视角，给推演保留来源</small></span></summary>
+            <p>按项目创建自定义 Persona，也可以选用预设人群。把访谈记录、问卷摘要或文件放到对应项目的证据库，给导入的原件补上摘要后，Spark 可引用这些文字资料。</p>
+          </details>
+          <details name="home-feature">
+            <summary><span class="home-flow-icon" aria-hidden="true">◫</span><span><strong>验证记录与真人测试</strong><small>回到某一轮，找到当时的问题和任务</small></span></summary>
+            <p>Spark 的需求假设和 Mirror 的原型问题按轮次保存，点击时间线可查看当轮明细。把 Mirror 的任务带进真人测试，填写观察结果和证据触发的改动。</p>
+          </details>
+          <details name="home-feature">
+            <summary><span class="home-flow-icon" aria-hidden="true">▤</span><span><strong>提交中心</strong><small>把验证过程带进参赛材料</small></span></summary>
+            <p>对照参考清单记录材料准备进度，回看最近的验证报告，并导出包含蓝图、证据、测试结果和准备状态的 Markdown 打磨记录。</p>
+          </details>
+        </div>
+      </section>
+
+      <div class="home-wrap home-bottom-wrap">
+        <section class="home-close" aria-labelledby="home-close-title">
+          <div><h2 id="home-close-title">从你的第一个验证问题开始</h2><p>想一想目标用户在什么场景里遇到了困难，建一个项目，把这条线索记下来。</p></div>
+          <button class="button button-primary" type="button" data-action="enter-empty">开始我的项目 <span aria-hidden="true">→</span></button>
+        </section>
+      </div>
+
+      <footer class="home-footer"><div class="home-wrap"><span>PersonaLab · 学生科创验证工作台</span><a href="#landing">回到顶部 <span aria-hidden="true">↑</span></a></div></footer>
     </main>
 
     <div id="app" class="app-shell" hidden>
       <aside class="sidebar student-sidebar" id="student-navigation">
-        <div class="sidebar-top"><a class="brand brand-sidebar" href="#" data-nav="workspace"><img class="brand-icon" src="./assets/personalab-logo-icon.png" alt="" /><span class="brand-label">PersonaLab</span></a><span class="student-side-badge">STUDENT</span></div>
+        <div class="sidebar-top"><a class="brand brand-sidebar" href="#" data-nav="workspace"><span class="student-brand-mark" aria-hidden="true"></span><span class="brand-label">PersonaLab</span></a><span class="student-side-badge">STUDENT</span></div>
         <nav class="main-nav" aria-label="主要导航">
           <p class="nav-group-label">项目中心</p>
           <button class="nav-item active" data-nav="workspace"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label"><b>项目总览</b></span></button>
@@ -86,7 +163,7 @@
           <button class="nav-item" data-nav="materials"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label"><b>证据库</b><small>资料与来源</small></span></button>
           <button class="nav-item" data-nav="reports"><span class="nav-icon" aria-hidden="true">▥</span><span class="nav-label"><b>报告</b><small>验证记录</small></span></button>
         </nav>
-        <div class="sidebar-bottom"><div class="xiaop-mini-card"><img src="./assets/personalab-xiaop.webp" alt="" /><div><strong>小P 提醒</strong><small>模拟洞察不是用户证据</small></div></div><div class="sidebar-utility"><button class="text-button" data-action="show-landing">返回产品首页</button><button class="text-button" data-action="reset-demo">重置当前项目</button></div></div>
+        <div class="sidebar-bottom"><div class="xiaop-mini-card"><span class="student-mascot" aria-hidden="true"></span><div><strong>小P 提醒</strong><small>模拟洞察不是用户证据</small></div></div><div class="sidebar-utility"><button class="text-button" data-action="show-landing">返回产品首页</button><button class="text-button" data-action="reset-demo">重置当前项目</button></div></div>
       </aside>
       <button class="sidebar-backdrop" data-action="toggle-menu" aria-label="关闭导航"></button>
       <div class="app-main">
@@ -99,6 +176,7 @@
     <div id="modal-root"></div>
     <script src="./student-evidence.js?v=2.8"></script>
     <script src="./student.js?v=2.8"></script>
-    <script src="./app.js?v=2.8"></script>
+    <script src="./student-home.js?v=2.9"></script>
+    <script src="./app.js?v=2.9"></script>
   </body>
 </html>

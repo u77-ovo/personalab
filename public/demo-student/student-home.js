@@ -79,16 +79,5 @@ personaOptions.forEach(button => button.addEventListener("click", () => {
   personaOptions.forEach(option => option.setAttribute("aria-pressed", String(option === button)));
   personaConcern.textContent = concern;
   personaQuestion.textContent = `访谈可以追问 · ${question}`;
-  if (homeMotion.matches) personaConcern.parentElement.animate([{ opacity: .65, translate: "0 4px" }, { opacity: 1, translate: "0 0" }], { duration: 200, easing: "ease-out" });
+  if (homeMotion.matches) personaConcern.parentElement.animate([{ opacity: .78 }, { opacity: 1 }], { duration: 150, easing: "ease-out" });
 }));
-
-if ("IntersectionObserver" in window && homeMotion.matches) {
-  const homeSections = document.querySelectorAll(".home-workflow ol, .home-trace, .home-persona-layout, .home-feature-showcase");
-  const observer = new IntersectionObserver(entries => {
-    entries.filter(entry => entry.isIntersecting).forEach(entry => {
-      entry.target.classList.add("home-arrived");
-      observer.unobserve(entry.target);
-    });
-  }, { threshold: .16 });
-  homeSections.forEach(section => observer.observe(section));
-}

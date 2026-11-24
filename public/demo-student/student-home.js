@@ -2,6 +2,7 @@ const casePreview = document.querySelector("#case-preview");
 const caseTabs = [...casePreview.querySelectorAll("[data-case-tab]")];
 const caseOpen = casePreview.querySelector("[data-case-open]");
 const caseOpenLabels = { spark: "打开 Spark", mirror: "打开 Mirror", test: "打开验证计划" };
+const workflowPreviewLinks = document.querySelectorAll(".home-workflow [data-preview-link]");
 
 function selectHomeCase(tab, focus = false) {
   for (const item of caseTabs) {
@@ -13,6 +14,7 @@ function selectHomeCase(tab, focus = false) {
   const view = tab.dataset.caseTab;
   caseOpen.dataset.samplePage = view;
   caseOpen.firstChild.textContent = `${caseOpenLabels[view]} `;
+  workflowPreviewLinks.forEach(link => link.setAttribute("aria-current", String(link.dataset.previewLink === view)));
   if (focus) tab.focus({ preventScroll: true });
 }
 
@@ -43,4 +45,19 @@ const casePathNote = casePreview.querySelector(".home-path-note p");
 casePath.forEach(button => button.addEventListener("click", () => {
   casePath.forEach(step => step.setAttribute("aria-pressed", String(step === button)));
   casePathNote.textContent = pathNotes[button.dataset.casePath];
+}));
+
+const personaPreviews = {
+  new: ["先看懂为什么要改计划", "你上一次发现课程和待办冲突时，先去哪里找原因？"],
+  frequent: ["尽快找出可替换的空档", "临时要重排好几项任务时，哪一步最花时间？"],
+  privacy: ["知道日程会被怎么使用", "如果只有允许读取日程才能得到建议，你想先确认什么？"]
+};
+const personaOptions = [...document.querySelectorAll("[data-persona-preview]")];
+const personaConcern = document.querySelector("[data-persona-concern]");
+const personaQuestion = document.querySelector("[data-persona-question]");
+personaOptions.forEach(button => button.addEventListener("click", () => {
+  const [concern, question] = personaPreviews[button.dataset.personaPreview];
+  personaOptions.forEach(option => option.setAttribute("aria-pressed", String(option === button)));
+  personaConcern.textContent = concern;
+  personaQuestion.textContent = `访谈可以追问 · ${question}`;
 }));

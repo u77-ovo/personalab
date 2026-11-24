@@ -1281,7 +1281,8 @@ document.addEventListener("keydown", event => {
 
 document.querySelectorAll("[data-nav]").forEach(el => el.addEventListener("click", e => { e.preventDefault(); navigate(el.dataset.nav); }));
 syncResumeButton();
-const directHome = new URLSearchParams(location.search).get("view") === "home" || ["#landing", "#case-preview", "#workflow", "#about", "#features"].includes(location.hash);
+const homeAnchor = document.getElementById(location.hash.slice(1));
+const directHome = new URLSearchParams(location.search).get("view") === "home" || document.querySelector("#landing").contains(homeAnchor);
 if (projectLibrary.length && !directHome) {
   enterDemo("resume", "workspace");
 }

@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="./student-blue.css?v=2.3" />
     <link rel="stylesheet" href="./student-polish.css?v=2.7" />
     <link rel="stylesheet" href="./student-workbench.css?v=2.8" />
-    <link rel="stylesheet" href="./student-home.css?v=2.9.6" />
+    <link rel="stylesheet" href="./student-home.css?v=2.10" />
   </head>
   <body>
     <main id="landing" class="landing student-home">
@@ -28,12 +28,13 @@
         </div>
       </header>
 
+      <div class="home-hero-zone">
       <section class="home-intro" aria-labelledby="home-title">
         <div class="home-wrap home-intro-layout">
           <div class="home-copy">
             <p class="home-product">PersonaLab · 学生科创验证工作台</p>
-            <h1 id="home-title" tabindex="-1"><span>让好创意，</span><span>经得起验证。</span></h1>
-            <p class="home-lead">以真实用户诉求为基准，通过为不同人群配置 <span>AI Persona（虚拟用户）</span>仿真，支持产品早期需求挖掘与原型可用性检验的用户验证平台与科创工作台。</p>
+            <h1 id="home-title" tabindex="-1"><span>让好创意，</span><span>经得起<em>验证</em>。</span></h1>
+            <p class="home-lead">从访谈和问卷出发，为项目设置不同的 <span>AI Persona（虚拟用户）</span>。先看大家可能在哪一步卡住，再用<span>真人测试</span>确认要改什么。</p>
             <div class="home-actions">
               <button class="button button-primary" type="button" data-action="enter-empty">创建科创项目 <svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#arrow"></use></svg></button>
               <button class="button button-secondary" type="button" data-action="enter-sample">体验示例项目</button>
@@ -42,13 +43,10 @@
           </div>
 
           <article class="home-case-stage" id="case-preview" aria-labelledby="case-title">
-          <button class="home-tool-float home-tool-spark" type="button" data-case-shortcut="spark" aria-controls="case-spark" aria-pressed="true">
-            <span class="home-flow-icon home-flow-spark"><svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#spark"></use></svg></span><span><strong>Spark 需求探索</strong><small>比较不同人群的需求</small></span>
-          </button>
           <div class="home-case">
             <header class="home-case-header">
-              <div><h2 id="case-title">校园 AI 学习助手</h2><p>临时任务打乱原计划，学生怎样重新安排？</p></div>
-              <span class="tag tag-gray">示例预览</span>
+              <div><p>示例项目</p><h2 id="case-title">校园 AI 学习助手</h2></div>
+              <svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#blueprint"></use></svg>
             </header>
             <div class="home-case-tabs" role="tablist" aria-label="示例项目的验证步骤">
               <button type="button" role="tab" id="case-tab-spark" aria-selected="true" aria-controls="case-spark" data-case-tab="spark"><svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#spark"></use></svg> Spark</button>
@@ -56,8 +54,8 @@
               <button type="button" role="tab" id="case-tab-test" aria-selected="false" aria-controls="case-test" tabindex="-1" data-case-tab="test"><svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#validate"></use></svg> 真人验证</button>
             </div>
             <div class="home-case-panel" id="case-spark" role="tabpanel" aria-labelledby="case-tab-spark">
-              <p class="home-panel-label">需求探索 <span class="tag tag-orange">待验证假设</span></p>
-              <h3>先说明任务冲突，<span>学生</span>会更容易做决定吗？</h3>
+              <p class="home-panel-label">待验证假设</p>
+              <h3>先说明任务冲突，<span>学生</span>能更快重排计划吗？</h3>
               <div class="home-perspectives">
                 <div><span aria-hidden="true">新</span><div><strong>第一次使用</strong><p>我想先看懂原计划为什么要改。</p></div></div>
                 <div><span aria-hidden="true">效</span><div><strong>经常调整计划</strong><p>我想直接看到冲突和可选时间。</p></div></div>
@@ -81,19 +79,14 @@
               <ul class="home-test-measures" aria-label="观察指标"><li>完成用时</li><li>任务遗漏</li><li>能否说出调整理由</li></ul>
             </div>
             <footer class="home-case-footer">
-              <small>页面内容为示例，真实结论需要真人测试。</small>
+              <small>示例中的推演用于准备测试。</small>
               <button class="link-button" type="button" data-action="enter-sample" data-case-open>打开 Spark <svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#open"></use></svg></button>
             </footer>
           </div>
-          <div class="home-case-bottom">
-            <button class="home-tool-float home-tool-mirror" type="button" data-case-shortcut="mirror" aria-controls="case-mirror" aria-pressed="false">
-              <span class="home-flow-icon"><svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#mirror"></use></svg></span><span><strong>Mirror 预演</strong><small>看原型在哪一步卡住</small></span>
-            </button>
-            <aside class="home-tip" aria-label="小P 的验证提示">
-              <div><strong>下一步怎么测？</strong><a href="#case-preview" data-preview-link="test">跟小P看测试计划 <svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#open"></use></svg></a></div>
-              <span class="student-mascot" role="img" aria-label="戴蓝色学士帽、拿着放大镜的小P"></span>
-            </aside>
-          </div>
+          <aside class="home-tip" aria-label="小P 的验证提示">
+            <a href="#case-preview" data-preview-link="test">跟小P看测试计划 <svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#open"></use></svg></a>
+            <span class="student-mascot" role="img" aria-label="戴蓝色学士帽、拿着放大镜的小P"></span>
+          </aside>
           </article>
         </div>
       </section>
@@ -107,6 +100,7 @@
           <li><a href="#case-preview" data-preview-link="test"><span class="home-flow-number" aria-hidden="true">04</span><strong>真人测试与整理</strong><small>记录测试结果，导出打磨记录</small></a></li>
         </ol>
       </section>
+      </div>
 
       <section class="home-background" id="about" aria-labelledby="about-title">
         <div class="home-wrap home-background-layout">
@@ -125,12 +119,21 @@
       </section>
 
       <section class="home-persona" id="persona-intro" aria-labelledby="persona-intro-title">
-        <div class="home-wrap home-persona-content">
-        <header class="home-section-lead">
-          <h2 id="persona-intro-title">按项目自定义 AI Persona</h2>
-          <p>同一个任务，不同人群在意的细节可能不同。你可以选用平台预设，也可以为自己的项目创建虚拟用户画像。</p>
-        </header>
-        <div class="home-persona-layout">
+        <div class="home-wrap home-persona-layout">
+          <div class="home-persona-guide">
+            <header class="home-section-lead">
+              <h2 id="persona-intro-title">按项目自定义 AI Persona</h2>
+              <p>选用预设人群，或自己创建画像。围绕同一个任务，看看不同人群各在意什么。</p>
+            </header>
+            <dl class="home-persona-steps">
+              <div><dt>创建画像</dt><dd>写下这类人想完成什么、平时怎么做、最担心什么。</dd></div>
+              <div><dt>同题对照</dt><dd>在 Spark 或 Mirror 中勾选一个或多个 Persona，对比他们可能遇到的问题。</dd></div>
+            </dl>
+            <div class="home-persona-actions">
+              <button class="button button-secondary" type="button" data-action="enter-sample" data-sample-page="personas">在示例里创建 Persona <svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#open"></use></svg></button>
+              <a href="#case-preview" data-preview-link="spark">看 Spark 示例 <svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#open"></use></svg></a>
+            </div>
+          </div>
         <article class="home-persona-board" aria-labelledby="persona-board-title">
           <header><span class="home-flow-icon home-flow-spark"><svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#persona"></use></svg></span><div><h3 id="persona-board-title">临时来了新作业，你最在意什么？</h3><p>校园 AI 学习助手 · 示例中的虚拟用户</p></div></header>
           <div class="home-persona-options" role="group" aria-label="切换虚拟用户">
@@ -143,17 +146,6 @@
             <p data-persona-question>访谈可以追问 · 你上一次发现课程和待办冲突时，先去哪里找原因？</p>
           </div>
         </article>
-          <div class="home-persona-guide">
-            <dl class="home-persona-steps">
-              <div><dt>创建画像</dt><dd>为每类人群填写名称、目标、使用情境和主要顾虑，补上行为特点或特征标签。</dd></div>
-              <div><dt>同题对照</dt><dd>运行 Spark 或 Mirror 时，勾选本轮要看的一个或多个人群，比较各自可能遇到的问题。</dd></div>
-            </dl>
-            <div class="home-persona-actions">
-              <button class="button button-secondary" type="button" data-action="enter-sample" data-sample-page="personas">在示例里创建 Persona <svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#open"></use></svg></button>
-              <a href="#case-preview" data-preview-link="spark">看 Spark 示例 <svg class="home-icon" aria-hidden="true"><use href="./assets/student-home-icons.svg#open"></use></svg></a>
-            </div>
-          </div>
-        </div>
         </div>
       </section>
 
@@ -228,7 +220,7 @@
     <div id="modal-root"></div>
     <script src="./student-evidence.js?v=2.8"></script>
     <script src="./student.js?v=2.8"></script>
-    <script src="./student-home.js?v=2.9.6"></script>
+    <script src="./student-home.js?v=2.10"></script>
     <script src="./app.js?v=2.9.4"></script>
   </body>
 </html>

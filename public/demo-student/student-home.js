@@ -3,37 +3,54 @@ const caseTabs = [...casePreview.querySelectorAll("[data-case-tab]")];
 const caseOpen = casePreview.querySelector("[data-case-open]");
 const caseOpenLabels = { spark: "打开 Spark", mirror: "打开 Mirror", test: "打开验证计划" };
 const workflowPreviewLinks = document.querySelectorAll(".home-workflow [data-preview-link]");
+const caseShortcuts = [...casePreview.querySelectorAll("[data-case-shortcut]")];
 
-function selectHomeCase(tab, focus = false) {
-  for (const item of caseTabs) {
+function activateHomeTab(tabs, tab, focus) {
+  for (const item of tabs) {
     const active = item === tab;
     item.setAttribute("aria-selected", String(active));
     item.tabIndex = active ? 0 : -1;
     document.getElementById(item.getAttribute("aria-controls")).hidden = !active;
   }
+  if (focus) tab.focus({ preventScroll: true });
+}
+
+function bindHomeTabs(tabs, select) {
+  tabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => select(tab));
+    tab.addEventListener("keydown", event => {
+      const last = tabs.length - 1;
+      const next = { ArrowLeft: (index + last) % tabs.length, ArrowRight: (index + 1) % tabs.length, Home: 0, End: last }[event.key];
+      if (next === undefined) return;
+      event.preventDefault();
+      select(tabs[next], true);
+    });
+  });
+}
+
+function selectHomeCase(tab, focus = false) {
+  activateHomeTab(caseTabs, tab, focus);
   const view = tab.dataset.caseTab;
   caseOpen.dataset.samplePage = view;
   caseOpen.firstChild.textContent = `${caseOpenLabels[view]} `;
   workflowPreviewLinks.forEach(link => link.setAttribute("aria-current", String(link.dataset.previewLink === view)));
-  if (focus) tab.focus({ preventScroll: true });
+  caseShortcuts.forEach(button => button.setAttribute("aria-pressed", String(button.dataset.caseShortcut === view)));
 }
 
-caseTabs.forEach((tab, index) => {
-  tab.addEventListener("click", () => selectHomeCase(tab));
-  tab.addEventListener("keydown", event => {
-    const last = caseTabs.length - 1;
-    const next = { ArrowLeft: (index + last) % caseTabs.length, ArrowRight: (index + 1) % caseTabs.length, Home: 0, End: last }[event.key];
-    if (next === undefined) return;
-    event.preventDefault();
-    selectHomeCase(caseTabs[next], true);
-  });
-});
+bindHomeTabs(caseTabs, selectHomeCase);
 selectHomeCase(caseTabs[0]);
+
+caseShortcuts.forEach(button => button.addEventListener("click", () => {
+  selectHomeCase(caseTabs.find(tab => tab.dataset.caseTab === button.dataset.caseShortcut));
+}));
 
 document.querySelectorAll("[data-preview-link]").forEach(link => link.addEventListener("click", () => {
   const tab = caseTabs.find(item => item.dataset.caseTab === link.dataset.previewLink);
   selectHomeCase(tab, true);
 }));
+
+const featureTabs = [...document.querySelectorAll(".home-feature-list [role='tab']")];
+bindHomeTabs(featureTabs, (tab, focus) => activateHomeTab(featureTabs, tab, focus));
 
 const pathNotes = {
   add: "学生能否找到新增入口，并在一次操作里填完任务和截止时间？",
@@ -55,9 +72,23 @@ const personaPreviews = {
 const personaOptions = [...document.querySelectorAll("[data-persona-preview]")];
 const personaConcern = document.querySelector("[data-persona-concern]");
 const personaQuestion = document.querySelector("[data-persona-question]");
+const homeMotion = window.matchMedia("(prefers-reduced-motion: no-preference)");
 personaOptions.forEach(button => button.addEventListener("click", () => {
+  if (button.getAttribute("aria-pressed") === "true") return;
   const [concern, question] = personaPreviews[button.dataset.personaPreview];
   personaOptions.forEach(option => option.setAttribute("aria-pressed", String(option === button)));
   personaConcern.textContent = concern;
   personaQuestion.textContent = `访谈可以追问 · ${question}`;
+  if (homeMotion.matches) personaConcern.parentElement.animate([{ opacity: .65, translate: "0 4px" }, { opacity: 1, translate: "0 0" }], { duration: 200, easing: "ease-out" });
 }));
+
+if ("IntersectionObserver" in window && homeMotion.matches) {
+  const homeSections = document.querySelectorAll(".home-workflow ol, .home-trace, .home-persona-layout, .home-feature-showcase");
+  const observer = new IntersectionObserver(entries => {
+    entries.filter(entry => entry.isIntersecting).forEach(entry => {
+      entry.target.classList.add("home-arrived");
+      observer.unobserve(entry.target);
+    });
+  }, { threshold: .16 });
+  homeSections.forEach(section => observer.observe(section));
+}

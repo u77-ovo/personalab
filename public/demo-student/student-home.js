@@ -3,7 +3,6 @@ const caseTabs = [...casePreview.querySelectorAll("[data-case-tab]")];
 const caseOpen = casePreview.querySelector("[data-case-open]");
 const caseOpenLabels = { spark: "打开 Spark", mirror: "打开 Mirror", test: "打开验证计划" };
 const workflowPreviewLinks = document.querySelectorAll(".home-workflow [data-preview-link]");
-const caseShortcuts = [...casePreview.querySelectorAll("[data-case-shortcut]")];
 
 function activateHomeTab(tabs, tab, focus) {
   for (const item of tabs) {
@@ -15,12 +14,14 @@ function activateHomeTab(tabs, tab, focus) {
   if (focus) tab.focus({ preventScroll: true });
 }
 
-function bindHomeTabs(tabs, select) {
+function bindHomeTabs(tabs, select, allowVertical = false) {
   tabs.forEach((tab, index) => {
     tab.addEventListener("click", () => select(tab));
     tab.addEventListener("keydown", event => {
       const last = tabs.length - 1;
-      const next = { ArrowLeft: (index + last) % tabs.length, ArrowRight: (index + 1) % tabs.length, Home: 0, End: last }[event.key];
+      const previous = (index + last) % tabs.length;
+      const forward = (index + 1) % tabs.length;
+      const next = { ArrowLeft: previous, ArrowRight: forward, ArrowUp: allowVertical ? previous : undefined, ArrowDown: allowVertical ? forward : undefined, Home: 0, End: last }[event.key];
       if (next === undefined) return;
       event.preventDefault();
       select(tabs[next], true);
@@ -34,15 +35,10 @@ function selectHomeCase(tab, focus = false) {
   caseOpen.dataset.samplePage = view;
   caseOpen.firstChild.textContent = `${caseOpenLabels[view]} `;
   workflowPreviewLinks.forEach(link => link.setAttribute("aria-current", String(link.dataset.previewLink === view)));
-  caseShortcuts.forEach(button => button.setAttribute("aria-pressed", String(button.dataset.caseShortcut === view)));
 }
 
 bindHomeTabs(caseTabs, selectHomeCase);
 selectHomeCase(caseTabs[0]);
-
-caseShortcuts.forEach(button => button.addEventListener("click", () => {
-  selectHomeCase(caseTabs.find(tab => tab.dataset.caseTab === button.dataset.caseShortcut));
-}));
 
 document.querySelectorAll("[data-preview-link]").forEach(link => link.addEventListener("click", () => {
   const tab = caseTabs.find(item => item.dataset.caseTab === link.dataset.previewLink);
@@ -50,7 +46,7 @@ document.querySelectorAll("[data-preview-link]").forEach(link => link.addEventLi
 }));
 
 const featureTabs = [...document.querySelectorAll(".home-feature-list [role='tab']")];
-bindHomeTabs(featureTabs, (tab, focus) => activateHomeTab(featureTabs, tab, focus));
+bindHomeTabs(featureTabs, (tab, focus) => activateHomeTab(featureTabs, tab, focus), true);
 
 const pathNotes = {
   add: "学生能否找到新增入口，并在一次操作里填完任务和截止时间？",

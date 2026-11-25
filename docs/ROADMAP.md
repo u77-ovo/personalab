@@ -25,7 +25,7 @@
 3. 建立服务器 Repository，将 LocalStorage Store 逐模块迁移为数据库持久化。
 4. 增加 TXT/MD/CSV 文件导入、私有上传、删除与保留策略。
 5. 增加 Playwright Demo 主链路与双账户隔离 E2E。
-6. 最后接 OpenAI Responses API 的结构化输出、超时、幂等与预算。
+6. 千问结构化输出、超时和基础频率限制已接入；下一步补充登录、数据库级用户额度、幂等与全站预算。
 
 ## 已完成：部署前准备
 

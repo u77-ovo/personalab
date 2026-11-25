@@ -14,4 +14,4 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Keep Demo and Real providers visibly separated. Do not claim a real AI call, web search, user test, or deployment unless it was actually verified.
 - AI-generated issues default to `unverified_ai_hypothesis`. Only exact quotes whose ranges match the source may be marked verified.
 - Preserve Idea → Project → Issue ↔ Evidence → Action version links. Never overwrite history silently.
-- Put secrets only in local environment variables. Never expose service-role or OpenAI keys to the browser.
+- Put secrets only in local environment variables. Never expose service-role or Qwen keys to the browser.

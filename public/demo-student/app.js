@@ -36,6 +36,15 @@ const builtInPersonas = [
   { id: "p6", name: "推广与落地决策者", short: "落", color: "#bf755b", type: "平台预设", desc: "关注部署成本、责任边界、维护方式与能否在真实组织中持续使用。", traits: ["关注成本", "重视责任", "要求可落地"] }
 ];
 
+const personaFields = [
+  { key: "age", label: "年龄或年龄段", hint: "如：21 岁、18–24 岁", max: 40 },
+  { key: "role", label: "身份或角色", hint: "如：本科生、社团活动负责人", max: 80 },
+  { key: "goal", label: "想完成什么", hint: "如：先记下临时作业，下课后再安排", max: 180 },
+  { key: "context", label: "什么时候、在哪里用", hint: "如：上课前，用手机单手操作，只有两分钟", max: 240, multiline: true },
+  { key: "behavior", label: "使用习惯或操作限制", hint: "如：熟悉日历，喜欢快速录入，遇到冲突想稍后确认", max: 300, multiline: true },
+  { key: "basis", label: "画像依据", hint: "如：访谈 P03 第 2 段，或团队暂定假设", max: 200 },
+];
+
 const sampleMaterials = [
   { id: "m1", title: "校园任务冲突访谈片段", type: "用户访谈", source: "内置示例", content: "如果临时新增作业，我希望能直接看到它和已有任务在哪些时段冲突。", date: "示例", icon: "访", isSample: true },
   { id: "m2", title: "学习计划工具对比记录", type: "竞品资料", source: "内置示例", content: "可比较的维度包括任务导入、提醒、冲突提示和推荐理由。实际产品能力待逐项核对。", date: "示例", icon: "竞", isSample: true }
@@ -164,7 +173,24 @@ function upsertCurrentProject() {
 }
 
 function normalizeSparkRun(run) {
-  return { ...run, personas: run.personas || [], sources: run.sources || ["旧版演示记录"], evidence: run.evidence || [] };
+  const legacySteps = Array.isArray(run.validationSteps) ? run.validationSteps : [];
+  const pendingIds = new Set((run.evidence || []).filter(item => item.status === "待检索").map(item => item.id));
+  return {
+    ...run,
+    personas: run.personas || [],
+    sources: run.sources || ["旧版演示记录"],
+    evidence: (run.evidence || []).filter(item => !pendingIds.has(item.id)),
+    insights: (run.insights || []).map(item => ({
+      ...item,
+      evidenceIds: item.evidenceIds?.filter(id => !pendingIds.has(id)),
+    })),
+    evidenceGaps: run.evidenceGaps || [],
+    validationPlan: run.validationPlan || legacySteps.map(step => ({
+      objective: step,
+      method: "请为这项验证补充参与者、任务、记录方式和执行时间。",
+      successSignal: "完成验证后，以真实观察决定保留、修改或否定该假设。"
+    }))
+  };
 }
 
 function normalizeMirrorRun(run) {
@@ -172,7 +198,11 @@ function normalizeMirrorRun(run) {
     ...run,
     personas: run.personas || [],
     scores: run.scores || [],
-    path: run.path || []
+    path: run.path || [],
+    issues: run.issues || [],
+    personaChecks: run.personaChecks || [],
+    metrics: run.metrics || [],
+    facilitatorNotes: run.facilitatorNotes || []
   };
 }
 
@@ -212,6 +242,13 @@ function formatRelativeTime(timestamp) {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours} 小时前`;
   return `${Math.floor(hours / 24)} 天前`;
+}
+
+function formatReportTime(timestamp) {
+  if (!timestamp) return "时间未记录";
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit"
+  }).format(new Date(timestamp));
 }
 
 function escapeHTML(value = "") {
@@ -436,11 +473,11 @@ function personaPicker(tool, previousRun) {
   const selectedCount = state.personas.filter(persona => previousIds.has(persona.id)).length;
   return `<fieldset class="run-persona-field" aria-describedby="${tool}-persona-hint">
     <legend>本轮 Persona</legend>
-    <p id="${tool}-persona-hint">至少勾选一类人群。${selectedCount ? "已带入当前记录的人选，可以重新勾选。" : "可以同时勾选多类。"}</p>
+    <p id="${tool}-persona-hint">选择 1–6 张与本轮任务相关的画像。${selectedCount ? "已带入当前记录的人选。" : ""}</p>
     <div class="persona-picks">${state.personas.map(persona => `
       <label class="run-persona-option">
         <input type="checkbox" name="${tool}Persona" value="${escapeHTML(persona.id)}"${previousIds.has(persona.id) ? " checked" : ""}>
-        <span>${escapeHTML(persona.name)}${persona.type === "自定义" ? '<small>项目自定义</small>' : ""}</span>
+        <span>${escapeHTML(persona.name)}${personaSubtitle(persona) ? `<small>${escapeHTML(personaSubtitle(persona))}</small>` : ""}</span>
       </label>`).join("")}</div>
     <output data-persona-count aria-live="polite">已选 ${selectedCount} 类</output>
   </fieldset>`;
@@ -453,13 +490,63 @@ function selectedRunPersonas(tool, form) {
     form.querySelector(".run-persona-option input")?.focus();
     showToast("请至少勾选一类本轮 Persona");
   }
+  if (selected.length > 6) {
+    showToast("每轮最多选择 6 张 Persona 卡");
+    return [];
+  }
   return selected;
 }
 
 function renderRunParticipants(personas = []) {
   if (!personas.length) return "";
   return `<ul class="run-participants" aria-label="本轮 Persona">${personas.map(persona =>
-    `<li>${escapeHTML(persona.name)}</li>`).join("")}</ul>`;
+    `<li title="${escapeHTML(personaSubtitle(persona))}">${escapeHTML(persona.name)}</li>`).join("")}</ul>`;
+}
+
+function personaSubtitle(persona) {
+  return [persona.profile?.age, persona.profile?.role].filter(Boolean).join(" · ");
+}
+
+function reportPersonaNames(ids, personas) {
+  return (ids || []).map(id => personas.find(persona => persona.id === id)?.name).filter(Boolean).join("、");
+}
+
+function personaComparisonHTML(comparison, labels) {
+  if (!comparison) return "";
+  return `<div class="report-scope-grid persona-comparison">
+    <section><strong>${labels[0]}</strong><p>${escapeHTML(comparison.shared)}</p></section>
+    <section><strong>${labels[1]}</strong><p>${escapeHTML(comparison.differences)}</p></section>
+  </div>`;
+}
+
+async function requestStudentResearch(payload) {
+  const response = await fetch("/api/student/research", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const result = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(result?.message || "千问报告生成失败，请稍后重试。");
+  return result;
+}
+
+function qwenPersonaInput(persona) {
+  return {
+    id: String(persona.id),
+    name: String(persona.name),
+    description: String(persona.desc || "").slice(0, 500),
+    traits: Array.isArray(persona.traits) ? persona.traits.map(trait => String(trait).slice(0, 80)).slice(0, 6) : [],
+    profile: Object.fromEntries(personaFields.map(field => [field.key, String(persona.profile?.[field.key] || "").slice(0, field.max)]))
+  };
+}
+
+function setResearchFormBusy(form, busy, busyText) {
+  const button = form.querySelector('button[type="submit"]');
+  if (!button) return;
+  if (!button.dataset.idleText) button.dataset.idleText = button.textContent;
+  button.disabled = busy;
+  button.textContent = busy ? busyText : button.dataset.idleText;
+  form.setAttribute("aria-busy", String(busy));
 }
 
 function renderSpark() {
@@ -468,10 +555,14 @@ function renderSpark() {
   const direction = currentSparkResult?.direction ?? (state.isSample ? sampleSparkQuestion : "");
   const currentApproach = currentSparkResult?.currentApproach ?? blueprint.currentApproach ?? "";
   const sources = currentSparkResult?.sources ?? (state.materials.some(hasMaterialExcerpt) ? ["用户资料"] : []);
+  const materials = state.materials.filter(hasMaterialExcerpt);
+  const chosenMaterials = new Set(currentSparkResult
+    ? (currentSparkResult.evidence || []).map(item => item.materialId)
+    : materials.slice(0, 3).map(item => item.id));
   return `
     <div class="page-heading"><div><p class="eyebrow" style="color:var(--orange)">SPARK / 播种</p><h1>把项目痛点写成可验证的假设</h1><p>选择本轮要看的用户视角，梳理需求假设和下一轮调研方向。</p></div><span class="tag tag-orange">需求探索</span></div>
     ${renderLabProject()}
-    <div class="callout callout-info" style="margin-bottom:16px">根据你填写的场景和选中的人群生成本地推演与调研建议。真实需求需要结合访谈、观察或其他资料核对。</div>
+    <div class="callout callout-info" style="margin-bottom:16px">千问会根据你填写的场景、Persona 与可回溯资料生成待验证假设。AI 结果不能替代访谈、观察或真人任务测试。</div>
     <div class="lab-layout">
       <form id="spark-form" class="card lab-panel">
         <div class="panel-head"><h2>设置本轮需求探索</h2><span class="tag tag-gray">约 1 分钟</span></div>
@@ -482,13 +573,17 @@ function renderSpark() {
           <details class="lab-optional">
             <summary>补充现有做法和参考资料 <small>选填</small></summary>
             <div class="form-group"><label class="form-label" for="spark-approach">用户目前怎么处理？</label><textarea class="textarea" id="spark-approach" name="currentApproach" placeholder="例如：看楼层图、问工作人员，或按手机导航走。">${escapeHTML(currentApproach)}</textarea></div>
-            <div class="form-group"><span class="form-label">参考资料</span><div class="choice-grid">
-              <span class="choice"><input id="source-own" type="checkbox" name="sources" value="用户资料"${sources.includes("用户资料") ? " checked" : ""}><label for="source-own"><span class="choice-mark">✓</span><span><strong>本项目资料库</strong><small>随报告保存最新的三条有摘要的资料</small></span></label></span>
+            <div class="form-group"><label class="form-label" for="spark-concept">已有方案 <small>选填</small></label><textarea class="textarea" id="spark-concept" name="concept" rows="2" maxlength="800" placeholder="写出你想验证的做法，如：先保存作业，稍后处理冲突">${escapeHTML(currentSparkResult?.concept || "")}</textarea></div>
+            <fieldset class="run-persona-field spark-materials"><legend>本轮引用的项目资料</legend><p>选择和研究问题相关的原文或摘要，最多 5 条。</p>
+              ${materials.length ? `<div class="persona-picks">${materials.map(item => `<label class="run-persona-option"><input type="checkbox" name="materialIds" value="${escapeHTML(item.id)}"${chosenMaterials.has(item.id) ? " checked" : ""}><span>${escapeHTML(item.title)}<small>${escapeHTML(item.isSample ? "内置示例" : item.type)}</small></span></label>`).join("")}</div>` : '<p>项目资料库暂无带原文或摘要的资料。</p>'}
+            </fieldset>
+            <div class="form-group"><div class="choice-grid">
               <span class="choice"><input id="source-web" type="checkbox" name="sources" value="公开资料"${sources.includes("公开资料") ? " checked" : ""}><label for="source-web"><span class="choice-mark">✓</span><span><strong>添加公开资料检索任务</strong><small>保存一条待检索记录</small></span></label></span>
             </div></div>
             <div class="form-group"><label class="form-label" for="spark-title">记录名称</label><input class="input" id="spark-title" name="title" value="${escapeHTML(currentSparkResult?.title || "")}" placeholder="${escapeHTML(state.project.name)}"></div>
           </details>
-          <div class="submit-row"><button class="button button-purple" type="submit">运行需求推演</button><small>本地规则推演</small></div>
+          <div class="submit-row"><button class="button button-purple" type="submit">千问生成需求报告</button><small>真实 AI · 结果待验证</small></div>
+          <p class="research-error" role="alert" data-research-error hidden></p>
         </div>
       </form>
       <section id="spark-result" class="card lab-panel">${currentSparkResult ? sparkResultHTML(currentSparkResult) : sparkEmptyHTML()}</section>
@@ -499,26 +594,60 @@ function sparkEmptyHTML() {
   return `<div class="empty-state"><div><div class="empty-illustration">✦</div><h3>等待开始本轮探索</h3><p>填写场景和想弄清的问题，再勾选本轮 Persona。</p></div></div>`;
 }
 
+function sparkReportStats(result) {
+  const evidenceCount = result.evidence?.length || 0;
+  const insightCount = result.insights?.length || 0;
+  const linkedInsightCount = (result.insights || []).filter(item => item.evidenceIds?.length).length;
+  return { evidenceCount, insightCount, linkedInsightCount, gapCount: result.evidenceGaps?.length || 0 };
+}
+
+function resultTraceHTML(result) {
+  if (result.provider !== "qwen") return `<span class="result-trace">历史演示记录</span>`;
+  return `<span class="result-trace">千问 ${escapeHTML(result.model || "")} · ${formatReportTime(result.createdAt)}${result.responseId ? ` · 可追踪生成记录` : ""}</span>`;
+}
+
 function sparkResultHTML(result) {
-  const sourceSummary = result.sources?.length ? result.sources.join(" + ") : "未勾选参考资料";
+  result = normalizeSparkRun(result);
+  const stats = sparkReportStats(result);
   return `<div class="result-shell">
-    <div class="result-summary"><div class="result-summary-top"><div><p class="eyebrow">SPARK RESULT · 模拟探索</p><h2>${escapeHTML(result.title)} · 需求探索摘要</h2><p>${escapeHTML(result.direction)}</p><p>资料范围为 ${escapeHTML(sourceSummary)}，保留 ${result.evidence?.length || 0} 条来源记录。</p>${renderRunParticipants(result.personas)}</div><span class="tag tag-green">已记录</span></div></div>
-    <div class="result-tabs"><button class="result-tab active" data-spark-tab="dialogue">人群视角</button><button class="result-tab" data-spark-tab="insights">待验证假设</button><button class="result-tab" data-spark-tab="evidence">资料来源</button><button class="result-tab" data-spark-tab="concept">验证建议</button></div>
-    <div id="spark-result-body" class="result-body">${sparkTabHTML(result,"dialogue")}</div>
+    <div class="result-summary"><div class="result-summary-top"><div><p class="eyebrow">SPARK RESULT · 千问 AI 待验证报告</p><h2>${escapeHTML(result.title)} · 需求探索报告</h2><p>${escapeHTML(result.summary || result.direction)}</p>${renderRunParticipants(result.personas)}${resultTraceHTML(result)}</div><span class="tag tag-orange">AI 推测</span></div>
+      <div class="result-kpis"><span><strong>${result.personas.length}</strong><small>Persona 视角</small></span><span><strong>${stats.insightCount}</strong><small>待验证假设</small></span><span><strong>${stats.linkedInsightCount}/${stats.insightCount}</strong><small>资料关联</small></span><span><strong>${stats.gapCount}</strong><small>证据缺口</small></span></div>
+    </div>
+    <div class="result-tabs"><button class="result-tab active" data-spark-tab="overview">报告概览</button><button class="result-tab" data-spark-tab="dialogue">人群视角</button><button class="result-tab" data-spark-tab="insights">待验证假设</button><button class="result-tab" data-spark-tab="evidence">证据审计</button><button class="result-tab" data-spark-tab="concept">验证计划</button></div>
+    <div id="spark-result-body" class="result-body">${sparkTabHTML(result,"overview")}</div>
   </div>`;
 }
 
 function sparkTabHTML(result, tab) {
-  if (tab === "dialogue") return `<div class="roundtable">${result.dialogue.map(d => `<div class="speech"><span class="speech-avatar" style="background:${d.color}">${escapeHTML(d.short)}</span><div class="speech-bubble"><strong>${escapeHTML(d.name)}</strong><span class="source-ref">Persona 推演</span><p>${escapeHTML(d.text)}</p></div></div>`).join("")}</div>`;
-  if (tab === "insights") return `<div class="insight-list">${result.insights.map(i => `<article class="insight"><div class="insight-top"><h4>${escapeHTML(i.title)} <span class="source-ref">${escapeHTML(i.source)}</span></h4><span class="priority ${i.level === "高" ? "priority-high" : "priority-mid"}">${i.level}优先级</span></div><p>${escapeHTML(i.detail)}</p>${i.evidenceIds?.length ? `<div class="evidence-links">依据：${i.evidenceIds.map(id=>`<span>${escapeHTML(id)}</span>`).join("")}</div>` : ""}</article>`).join("")}</div>`;
-  if (tab === "evidence") return `<div class="evidence-list">${(result.evidence || []).map(item=>`<article class="evidence-card"><div class="evidence-card-top"><span class="evidence-id">${escapeHTML(item.id)}</span><span class="tag tag-gray">${escapeHTML(item.status)}</span></div><h4>${escapeHTML(item.title)}</h4><blockquote>“${escapeHTML(item.quote)}”</blockquote><p>${escapeHTML(item.kind)} · 来源 ${escapeHTML(item.source)}${item.materialId ? ` · 资料编号 ${escapeHTML(item.materialId)}` : ""}</p></article>`).join("") || `<div class="callout callout-warning">本轮只有 Persona 推演。请记录需要补充的资料来源。</div>`}</div>`;
-  const steps = result.isSample
-    ? ["做出从新增作业到查看冲突的最短流程", "对比普通日历和带解释的重排建议", "观察用户是否理解理由并能撤回操作", "记录每次重排用时、出错步骤和匿名反馈"]
-    : ["挑选一条最关键的用户任务", "写清当前做法与新原型的区别", "邀请目标用户完成相同任务并记录结果", "将实际观察和预期比较，决定下一轮改动"];
-  return `${result.scene ? `<div class="callout callout-info"><strong>使用场景</strong><p>${escapeHTML(result.scene)}</p></div>` : ""}<div class="section-title"><h2>下一轮验证</h2></div><div class="insight-list">${steps.map(step=>`<article class="insight"><div class="insight-top"><h4>${step}</h4><span class="tag tag-purple">待执行</span></div></article>`).join("")}</div>`;
+  result = normalizeSparkRun(result);
+  const stats = sparkReportStats(result);
+  if (tab === "overview") return `<div class="report-overview">
+    <section class="report-section"><span class="report-section-label">执行摘要</span><h3>${escapeHTML(result.direction || "本轮研究问题")}</h3><p>${escapeHTML(result.summary || "这条历史记录没有保存执行摘要。")}</p></section>
+    <div class="report-scope-grid"><section><small>目标用户与场景</small><p>${escapeHTML(result.scene || "未记录")}</p></section><section><small>现有做法</small><p>${escapeHTML(result.currentApproach || "未记录")}</p></section></div>
+    ${result.concept ? `<section class="report-section"><span class="report-section-label">候选方案</span><p>${escapeHTML(result.concept)}</p></section>` : ""}
+    <section class="evidence-audit ${stats.linkedInsightCount ? "has-evidence" : "needs-evidence"}"><div><strong>${stats.linkedInsightCount ? "已建立资料关联" : "尚无关联资料"}</strong><p>${stats.linkedInsightCount} / ${stats.insightCount} 条假设关联了本轮资料，结论仍待验证。</p></div><span>${stats.evidenceCount} 条来源</span></section>
+    ${result.sources.includes("公开资料") ? '<p class="hint">公开资料检索已记为待办。</p>' : ""}
+    ${(result.evidenceGaps || []).length ? `<section class="report-section"><span class="report-section-label">优先补证</span><ul class="evidence-gap-list">${result.evidenceGaps.map(item => `<li>${escapeHTML(item)}</li>`).join("")}</ul></section>` : ""}
+  </div>`;
+  if (tab === "dialogue") return `<div class="callout callout-info report-boundary">以下内容为 AI Persona 推演。真实访谈摘录请见证据审计。</div>
+    ${personaComparisonHTML(result.comparison, ["共同需求", "人群分歧"])}
+    <div class="roundtable">${(result.dialogue || []).map(item => `<div class="speech"><span class="speech-avatar" style="background:${item.color}">${escapeHTML(item.short)}</span><div class="speech-bubble"><strong>${escapeHTML(item.name)}</strong>${personaSubtitle(item) ? `<span class="source-ref">${escapeHTML(personaSubtitle(item))}</span>` : ""}
+      ${item.goal ? `<p><b>本轮目标</b> ${escapeHTML(item.goal)}</p>` : ""}<p>${escapeHTML(item.text)}</p>${item.rationale ? `<p><b>推演依据</b> ${escapeHTML(item.rationale)}</p>` : ""}</div></div>`).join("")}</div>`;
+  if (tab === "insights") return `<div class="insight-list">${(result.insights || []).map((item, index) => {
+    const people = reportPersonaNames(item.personaIds, result.personas);
+    return `<article class="insight"><div class="insight-top"><h4>${escapeHTML(item.title)} <span class="source-ref">H${index + 1} · 待验证</span></h4><span class="priority ${item.level === "高" ? "priority-high" : "priority-mid"}">${escapeHTML(item.level)}优先级</span></div>
+      <p>${escapeHTML(item.detail)}</p>${people ? `<p><b>适用人群</b> ${escapeHTML(people)}</p>` : ""}${item.condition ? `<p><b>触发条件</b> ${escapeHTML(item.condition)}</p>` : ""}
+      ${item.evidenceIds?.length ? `<div class="evidence-links">资料关联：${item.evidenceIds.map(id => `<span>${escapeHTML(id)}</span>`).join("")}</div>` : '<div class="evidence-empty">待补充可回溯证据</div>'}</article>`;
+  }).join("")}</div>`;
+  if (tab === "evidence") return `<div class="evidence-audit-head"><div><strong>证据覆盖 ${stats.linkedInsightCount}/${stats.insightCount}</strong><p>只展示本轮实际输入并保留来源的资料，不把 AI 生成内容当成证据。</p></div></div><div class="evidence-list">${(result.evidence || []).map(item=>`<article class="evidence-card"><div class="evidence-card-top"><span class="evidence-id">${escapeHTML(item.id)}</span><span class="tag tag-gray">${escapeHTML(item.status)}</span></div><h4>${escapeHTML(item.title)}</h4><blockquote>“${escapeHTML(item.quote)}”</blockquote><p>${escapeHTML(item.kind)} · 来源 ${escapeHTML(item.source)}${item.materialId ? ` · 资料编号 ${escapeHTML(item.materialId)}` : ""}</p></article>`).join("") || `<div class="callout callout-warning">本轮没有可回溯资料。所有洞察目前都只是待验证假设。</div>`}</div>${(result.evidenceGaps || []).length ? `<section class="report-section compact"><span class="report-section-label">证据缺口</span><ul class="evidence-gap-list">${result.evidenceGaps.map(item => `<li>${escapeHTML(item)}</li>`).join("")}</ul></section>` : ""}`;
+  const plans = result.validationPlan?.length ? result.validationPlan : [
+    { objective: "验证最关键的一条用户假设", method: "邀请目标用户完成与研究问题直接相关的任务，并记录行为和原话。", successSignal: "获得可追溯记录，能够支持、修改或否定假设。" }
+  ];
+  return `${result.scene ? `<div class="callout callout-info"><strong>本轮场景：</strong>${escapeHTML(result.scene)}</div>` : ""}<div class="validation-plan-list">${plans.map((plan, index)=>`<article class="validation-plan-card"><span>${index + 1}</span><div><h4>${escapeHTML(plan.objective)}</h4><p><strong>执行方法</strong>${escapeHTML(plan.method)}</p><p><strong>支持信号</strong>${escapeHTML(plan.successSignal)}</p>${plan.reviseSignal ? `<p><strong>何时调整判断</strong>${escapeHTML(plan.reviseSignal)}</p>` : ""}</div><em>待执行</em></article>`).join("")}</div>`;
 }
 
-function runSpark(form) {
+async function runSparkWithQwen(form) {
+  const runState = state;
   const data = new FormData(form);
   const selected = selectedRunPersonas("spark", form);
   if (!selected.length) return;
@@ -527,69 +656,110 @@ function runSpark(form) {
   const scene = String(data.get("scene") || "").trim();
   const direction = String(data.get("direction") || "").trim();
   const currentApproach = String(data.get("currentApproach") || "").trim();
+  const concept = String(data.get("concept") || "").trim();
   if (!scene || !direction) {
     form.querySelector(scene ? "#spark-direction" : "#spark-scene").focus();
     showToast("请填写目标用户与使用场景，以及想弄清的问题");
     return;
   }
-  const evidence = [];
-  if (sources.includes("用户资料")) {
-    const referenceMaterials = state.materials.filter(hasMaterialExcerpt).slice(0, 3);
-    if (referenceMaterials.length) {
-      referenceMaterials.forEach((material, index) => evidence.push({
-        id: `E-${String(index + 1).padStart(2,"0")}`,
-        title: material.title,
-        kind: material.type,
-        quote: material.content,
-        source: material.source,
-         materialId: material.id,
-         status: material.isSample ? "内置示例资料" : "用户录入 · 待核对"
-      }));
-    } else {
-      evidence.push({ id:"G-01", title:"用户资料缺口", kind:"资料状态", quote:"本项目暂无可引用的资料摘要。可在证据库录入摘录，或给导入的文件补充摘要。", source:"系统检查", status:"待补充资料" });
-    }
+
+  const chosenMaterials = new Set(data.getAll("materialIds"));
+  if (chosenMaterials.size > 5) {
+    showToast("每轮最多引用 5 条资料");
+    return;
   }
-  if (sources.includes("公开资料")) evidence.push({
-    id:"W-01", title:"公开资料检索方向", kind:"检索任务", quote:direction, source:"本轮填写的探索问题", status:"待检索"
-  });
-  const texts = {
-    p1: "第一次使用时，我需要能找到核心任务入口，并看懂做完会得到什么。",
-    p2: "我想知道相对现在的做法，这个方案能省下哪几步。",
-    p3: "如果任务需要提供个人信息，我会先确认用途和删除方式。",
-    p4: "如果操作结果和预期不同，我需要清楚的提示和恢复方法。",
-    p5: "我需要用键盘完成任务，并通过文字识别关键状态。",
-    p6: "我会先和手头的替代方案比较，确认这个方案值得投入时间。"
-  };
-  const isSample = Boolean(state.isSample && direction === sampleSparkQuestion);
-  const hypotheses = isSample
-    ? [
-      ["冲突说明能否帮助用户更快重排任务？", "用相同的临时作业情境，对比普通日历与可解释的任务调整原型，记录完成时间和是否找到正确的冲突。", "高"],
-      ["用户能否判断何时接受调整建议？", "邀请目标用户说出接受或拒绝建议的理由，并观察他们能否撤回一次调整。", "中"]
-    ]
-    : [
-      ["目标用户是否会反复遇到这个问题？", `围绕「${direction}」，请用户回忆最近一次遇到类似情况的经过，并记录卡点及其影响。`, "高"],
-      ["现有做法哪里最需要改进？", currentApproach
-        ? `请用户演示「${currentApproach}」，记录在哪一步停顿、求助或换用其他方法。`
-        : "请用户演示现在的做法，记录在哪一步停顿、求助或换用其他方法。", "高"],
-      ["用户是否理解方案的结果并保有控制？", "观察用户能否解释结果、修改建议及处理一次出错情境。", "中"]
-    ];
-  const result = {
-    id: `s${Date.now()}`, title, scene, direction, currentApproach, personas: selected, sources, evidence, createdAt: Date.now(), date: "刚刚", isSample,
-    dialogue: selected.map(persona => ({
-      ...persona,
-      text: texts[persona.id] || `根据画像描述「${persona.desc}」，访谈这一人群最近一次遇到的困难和采用的办法。`
-    })),
-    insights: hypotheses.map(([title, detail, level]) => ({ title, detail, source: "模板 · 待验证", level, evidenceIds: [] }))
-  };
-  currentSparkResult = result;
-  state.project.stage = "需求探索";
-  state.project.progress = Math.max(state.project.progress, 55);
-  state.sparkRuns.unshift(result);
-  state.reports.unshift({ id: result.id, kind: "Spark", title: `${title} · 需求探索报告`, desc: "Persona 模拟讨论、资料来源与待验证假设", date: "刚刚", createdAt: result.createdAt, data: result });
-  saveState();
-  document.querySelector("#spark-result").innerHTML = sparkResultHTML(result);
-  bindResultTabs();
-  showToast("Spark 模拟完成，报告已保存");
+  const evidence = state.materials.filter(item => chosenMaterials.has(item.id) && hasMaterialExcerpt(item))
+    .map((material, index) => ({
+      id: `E-${String(index + 1).padStart(2, "0")}`,
+      title: String(material.title || "").slice(0, 160),
+      kind: material.type,
+      quote: material.content.slice(0, 1200),
+      source: String(material.source || "").slice(0, 200),
+      materialId: material.id,
+      status: material.isSample ? "内置示例资料" : "用户录入 · 待核对"
+    }));
+  if (evidence.length) sources.push("用户资料");
+
+  const errorNotice = form.querySelector("[data-research-error]");
+  errorNotice.hidden = true;
+  setResearchFormBusy(form, true, "千问正在生成…");
+  try {
+    const response = await requestStudentResearch({
+      kind: "spark",
+      project: { name: state.project.name, description: state.project.description || "" },
+      scene,
+      direction,
+      currentApproach,
+      concept,
+      personas: selected.map(qwenPersonaInput),
+      evidence: evidence.map(item => ({
+        id: item.id,
+        title: item.title,
+        quote: item.quote,
+        source: item.source,
+        status: item.status
+      }))
+    });
+    if (state !== runState) return;
+    const dialogueByPersona = new Map(response.data.dialogue.map(item => [item.personaId, item]));
+    const result = {
+      id: `s${Date.now()}`,
+      title,
+      scene,
+      direction,
+      currentApproach,
+      concept,
+      personas: selected,
+      sources,
+      evidence,
+      summary: response.data.summary,
+      comparison: response.data.comparison,
+      evidenceGaps: response.data.evidenceGaps,
+      validationPlan: response.data.validationPlan,
+      provider: "qwen",
+      model: response.model,
+      responseId: response.responseId,
+      quota: response.quota,
+      createdAt: Date.now(),
+      date: "刚刚",
+      dialogue: selected.map(persona => ({
+        ...persona,
+        ...dialogueByPersona.get(persona.id),
+        text: dialogueByPersona.get(persona.id)?.text || "本轮没有可展示的独立行为描述。"
+      })),
+      insights: response.data.insights.map(item => ({
+        ...item,
+        source: "千问 AI 推测 · 待验证"
+      }))
+    };
+    currentSparkResult = result;
+    state.project.stage = "需求探索";
+    state.project.progress = Math.max(state.project.progress, 55);
+    state.sparkRuns.unshift(result);
+    state.reports.unshift({
+      id: result.id,
+      kind: "Spark",
+      title: `${title} · 需求探索报告`,
+      desc: "千问生成的 Persona 视角、资料关联与待验证假设",
+      date: "刚刚",
+      createdAt: result.createdAt,
+      provider: "qwen",
+      model: response.model,
+      data: result
+    });
+    saveState();
+    const panel = document.querySelector("#spark-result");
+    if (panel) {
+      panel.innerHTML = sparkResultHTML(result);
+      bindResultTabs();
+    }
+    showToast("千问需求报告已生成并保存");
+  } catch (error) {
+    errorNotice.textContent = error instanceof Error ? error.message : "千问报告生成失败，请稍后重试";
+    errorNotice.hidden = false;
+  } finally {
+    setResearchFormBusy(form, false, "");
+  }
 }
 
 function renderMirror() {
@@ -601,30 +771,46 @@ function renderMirror() {
   const successCriteria = currentMirrorResult?.successCriteria ?? (state.isSample
     ? "临时作业和原有任务都进入新计划，用户能说明调整理由。"
     : blueprint.successMetric ?? "");
+  const hypotheses = sparkHypothesisOptions();
   return `
     <div class="page-heading"><div><p class="eyebrow" style="color:var(--green)">MIRROR / 预演</p><h1>把原型改进点变成测试任务</h1><p>写下原型的关键步骤，记录要让目标用户完成的动作，演练答辩时的操作路径。</p></div><span class="tag tag-green">原型预演</span></div>
     ${renderLabProject()}
-    <div class="callout callout-info" style="margin-bottom:16px">Mirror 把你填写的步骤整理成测试计划，并按所选人群给出观察点。文字线索可用于准备测试，界面表现需要现场走查。</div>
+    <div class="callout callout-info" style="margin-bottom:16px">千问会把你填写的步骤整理成待验证测试计划，并按所选人群生成观察点。文字线索可用于准备测试，界面表现仍需现场走查。</div>
     <div class="lab-layout">
       <form id="mirror-form" class="card lab-panel">
         <div class="panel-head"><h2>配置本轮原型预演</h2></div>
         <div class="panel-body">
           <div class="form-group"><label class="form-label" for="mirror-task">希望用户完成什么任务？ <small>必填</small></label><textarea class="textarea" id="mirror-task" name="task" rows="2" required placeholder="例如：从首页找到电梯并确认无障碍路线。">${escapeHTML(task)}</textarea></div>
           <div class="form-group"><label class="form-label" for="mirror-success">怎样算完成任务？ <small>必填</small></label><textarea class="textarea" id="mirror-success" name="successCriteria" rows="2" required placeholder="例如：用户能确认电梯位置，并说出抵达二层的路线。">${escapeHTML(successCriteria)}</textarea></div>
-          <div class="form-group"><label class="form-label" for="mirror-link">原型的操作步骤 <small>必填</small></label><textarea class="textarea" id="mirror-link" name="material" required aria-describedby="mirror-steps-hint" placeholder="从哪个页面开始？用户要点什么？系统会显示什么反馈？">${escapeHTML(description)}</textarea><p class="hint" id="mirror-steps-hint">每行写一个动作。Mirror 会按顺序整理成走查清单。</p></div>
+          <div class="form-group"><label class="form-label" for="mirror-link">原型的操作步骤 <small>必填</small></label><textarea class="textarea" id="mirror-link" name="material" required aria-describedby="mirror-steps-hint" placeholder="示例：用户从首页进入任务清单，点击添加，系统显示作业填写页。">${escapeHTML(description)}</textarea><p class="hint" id="mirror-steps-hint">每行写一个步骤，包括用户看见什么、能做什么，以及操作后的反馈。</p></div>
           ${personaPicker("mirror", currentMirrorResult)}
           <details class="lab-optional">
-            <summary>添加原型链接或附件 <small>选填</small></summary>
+            <summary>补充测试设定和原型资料 <small>选填</small></summary>
+            <div class="grid grid-2">
+              <div class="form-group"><label class="form-label" for="mirror-version">原型版本</label><input class="input" id="mirror-version" name="version" maxlength="80" value="${escapeHTML(currentMirrorResult?.version || "")}" placeholder="如：V0.2 排期流程"></div>
+              <div class="form-group"><label class="form-label" for="mirror-start">任务起点</label><input class="input" id="mirror-start" name="start" maxlength="300" value="${escapeHTML(currentMirrorResult?.start || "")}" placeholder="如：登录后的任务列表"></div>
+            </div>
+            <div class="form-group"><label class="form-label" for="mirror-context">测试条件</label><textarea class="textarea" id="mirror-context" name="context" rows="2" maxlength="500" placeholder="如：使用手机，课间两分钟；若误操作，可返回修改">${escapeHTML(currentMirrorResult?.context || "")}</textarea></div>
+            ${hypotheses.length ? `<div class="form-group"><label class="form-label" for="mirror-hypothesis">关联 Spark 假设</label><select class="select" id="mirror-hypothesis" name="hypothesisId"><option value="">本轮独立预检</option>${hypotheses.map(item => `<option value="${escapeHTML(item.id)}"${item.id === currentMirrorResult?.sparkHypothesis?.id ? " selected" : ""}>${escapeHTML(item.label)}</option>`).join("")}</select></div>` : ""}
             <div class="form-group"><label class="form-label" for="material-type">原型材料类型</label><select class="select" id="material-type" name="materialType">${materialTypes.map(type => `<option${type === currentMirrorResult?.materialType ? " selected" : ""}>${type}</option>`).join("")}</select></div>
             <div class="form-group"><label class="form-label" for="mirror-reference">原型链接</label><input class="input" id="mirror-reference" name="reference" type="url" value="${escapeHTML(currentMirrorResult?.reference || "")}" placeholder="https://"></div>
             <div class="form-group"><label class="upload-box" for="mirror-file"><input id="mirror-file" name="file" type="file" accept="image/*,.pdf,.ppt,.pptx,.doc,.docx,video/*"><span><span class="upload-icon" aria-hidden="true">⇧</span><strong id="upload-label">选取本地文件</strong><small>只记录文件名</small></span></label></div>
             <div class="form-group"><label class="form-label" for="mirror-title">记录名称</label><input class="input" id="mirror-title" name="title" value="${escapeHTML(currentMirrorResult?.title || "")}" placeholder="${escapeHTML(state.project.name)}"></div>
           </details>
-          <div class="submit-row"><button class="button button-green" type="submit">开始体验预演</button><small>本地规则预演</small></div>
+          <div class="submit-row"><button class="button button-green" type="submit">千问生成预检报告</button><small>真实 AI · 结果待验证</small></div>
+          <p class="research-error" role="alert" data-research-error hidden></p>
         </div>
       </form>
       <section id="mirror-result" class="card lab-panel">${currentMirrorResult ? mirrorResultHTML(currentMirrorResult) : mirrorEmptyHTML()}</section>
     </div>`;
+}
+
+function sparkHypothesisOptions() {
+  return state.sparkRuns.flatMap(run => (run.insights || []).map((insight, index) => ({
+    id: `${run.id}-H${index + 1}`,
+    label: `${run.title} · H${index + 1} ${insight.title}`,
+    detail: [insight.detail, insight.condition].filter(Boolean).join(" "),
+  })));
 }
 
 function mirrorEmptyHTML() {
@@ -652,7 +838,8 @@ function mirrorCoverage(description) {
 }
 
 function prototypeSteps(description) {
-  return description.split(/\r?\n|[。；;]|→/)
+  const lines = description.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  return (lines.length > 1 ? lines : description.split(/[。；;]|→/))
     .map(step => step.trim().replace(/^(?:[-*•]\s+|\d+[.、)）]\s*)/, ""))
     .filter(Boolean);
 }
@@ -667,16 +854,15 @@ function mirrorReferenceURL(value) {
 }
 
 function mirrorResultHTML(result) {
+  result = normalizeMirrorRun(result);
   const hasCoverage = Array.isArray(result.coverage);
   const reference = mirrorReferenceURL(result.reference);
   const linkedToValidation = state.mirrorValidationRunId === result.id;
+  const highPriorityCount = result.issues.filter(issue => issue.level === "高").length;
   return `<div class="result-shell">
     <header class="result-summary mirror-plan-header">
-      <p class="eyebrow">MIRROR · 原型预演</p>
-      <h2>${escapeHTML(result.title)}</h2>
-      <p>${escapeHTML(result.task)}</p>
-      ${renderRunParticipants(result.personas)}
-      ${reference ? `<a class="mirror-reference" href="${escapeHTML(reference)}" target="_blank" rel="noopener noreferrer">打开原型链接 ↗</a>` : ""}
+      <div class="result-summary-top"><div><p class="eyebrow">MIRROR · 千问 AI 待验证预检</p><h2>${escapeHTML(result.title)}</h2><p>${escapeHTML(result.summary || result.task)}</p>${renderRunParticipants(result.personas)}${resultTraceHTML(result)}${reference ? `<a class="mirror-reference" href="${escapeHTML(reference)}" target="_blank" rel="noopener noreferrer">打开原型链接 ↗</a>` : ""}</div><span class="tag tag-orange">启发式预检</span></div>
+      <div class="result-kpis"><span><strong>${result.path.length}</strong><small>原型步骤</small></span><span><strong>${result.issues.length}</strong><small>待验证问题</small></span><span><strong>${highPriorityCount}</strong><small>高优先级</small></span><span><strong>${result.metrics.length}</strong><small>观察指标</small></span></div>
     </header>
     <div class="mirror-plan-actions">
       <button class="button button-primary" type="button" data-action="use-mirror-plan" data-mirror-run="${escapeHTML(result.id)}">${linkedToValidation ? "前往真人测试" : "用于真人验证"}</button>
@@ -684,7 +870,7 @@ function mirrorResultHTML(result) {
     </div>
     <div class="result-tabs">
       <button class="result-tab active" type="button" data-mirror-tab="path" aria-pressed="true">测试计划</button>
-      <button class="result-tab" type="button" data-mirror-tab="issues" aria-pressed="false">人群观察点</button>
+      <button class="result-tab" type="button" data-mirror-tab="issues" aria-pressed="false">人群路径与问题</button>
       <button class="result-tab" type="button" data-mirror-tab="scores" aria-pressed="false">${hasCoverage ? "检查范围" : "历史示例评分"}</button>
     </div>
     <div id="mirror-result-body" class="result-body">${mirrorTabHTML(result, "path")}</div>
@@ -692,27 +878,49 @@ function mirrorResultHTML(result) {
 }
 
 function renderMirrorTestPlan(result) {
+  result = normalizeMirrorRun(result);
   const steps = result.path || [];
   return `<section class="mirror-test-plan">
+    ${result.summary ? `<div class="report-section mirror-executive-summary"><span class="report-section-label">预检摘要</span><p>${escapeHTML(result.summary)}</p></div>` : ""}
+    <div class="callout callout-info report-boundary"><strong>边界：</strong>当前报告只检查文字步骤，未实际操作界面，也没有真实用户参与。</div>
+    ${(result.version || result.start || result.context || result.sparkHypothesis) ? `<section class="report-section"><span class="report-section-label">本轮测试设定</span>
+      ${result.version ? `<p><b>原型版本</b> ${escapeHTML(result.version)}</p>` : ""}
+      ${result.start ? `<p><b>任务起点</b> ${escapeHTML(result.start)}</p>` : ""}
+      ${result.context ? `<p><b>测试条件</b> ${escapeHTML(result.context)}</p>` : ""}
+      ${result.sparkHypothesis ? `<p><b>关联假设</b> ${escapeHTML(result.sparkHypothesis.label)}</p>` : ""}
+    </section>` : ""}
+    ${result.taskPrompt ? `<div class="mirror-criterion"><h3>读给参与者的任务</h3><p>${escapeHTML(result.taskPrompt)}</p></div>` : ""}
     ${result.successCriteria ? `<div class="mirror-criterion"><h3>完成标准</h3><p>${escapeHTML(result.successCriteria)}</p></div>` : ""}
     <h3>按原型步骤走查</h3>
     ${steps.length ? `<ol class="mirror-test-steps">${steps.map(step => `<li>${escapeHTML(step.text)}</li>`).join("")}</ol>`
       : "<p>这条历史记录没有保存走查步骤。</p>"}
-    <h3>真人测试时记录</h3>
-    <p>用相同起点和任务说明。观察参与者是否达到完成标准，记录耗时、卡住的位置、求助或出错，以及如何恢复。</p>
+    ${result.metrics.length ? `<h3>真人测试观察指标</h3><div class="mirror-observation-grid">${result.metrics.map(metric => `<article><strong>${escapeHTML(metric.name)}</strong><p><b>怎么记</b>${escapeHTML(metric.howToRecord)}</p><p><b>成功信号</b>${escapeHTML(metric.successSignal)}</p></article>`).join("")}</div>` : `<h3>真人测试时记录</h3><p>用相同起点和任务说明。观察参与者是否达到完成标准，记录耗时、卡住的位置、求助或出错，以及如何恢复。</p>`}
+    ${result.facilitatorNotes.length ? `<h3>主持人提示</h3><ul class="facilitator-notes">${result.facilitatorNotes.map(note => `<li>${escapeHTML(note)}</li>`).join("")}</ul>` : ""}
   </section>`;
 }
 
 function mirrorTabHTML(result, tab) {
+  result = normalizeMirrorRun(result);
   if (tab === "issues") {
     const checks = (result.personaChecks || []).map(check => `<article class="insight">
       <h4>${escapeHTML(check.name)}</h4>
+      ${check.path?.length ? `<ol class="persona-route">${check.path.map(step => `<li><b>步骤 ${step}</b> ${escapeHTML(result.path[step - 1]?.text)}</li>`).join("")}</ol>` : check.path ? "<p>依据已提供的步骤，路径待确认。</p>" : ""}
       <p>${escapeHTML(check.concern)}</p>
+      ${check.rationale ? `<p><strong>路径依据</strong> ${escapeHTML(check.rationale)}</p>` : ""}
+      ${check.recovery ? `<p><strong>遇阻后的处理</strong> ${escapeHTML(check.recovery)}</p>` : ""}
       <p><strong>走查时观察</strong> ${escapeHTML(check.observe)}</p>
     </article>`).join("");
-    return `${checks ? `<section class="mirror-persona-checks">
-      <h3>本轮人群观察点</h3><div class="insight-list">${checks}</div>
-    </section>` : ""}<div class="issue-list">${result.issues.map((issue,i)=>`<article class="issue-card"><span class="issue-index">${i+1}</span><div><h4>${escapeHTML(issue.title)}</h4><p>${escapeHTML(issue.detail)}</p><div class="issue-meta"><span class="tag ${issue.level === "高" ? "tag-red" : "tag-orange"}">${issue.level}优先级</span><span class="tag tag-gray">${escapeHTML(issue.dimension)}</span></div></div></article>`).join("")}</div>`;
+    return `${personaComparisonHTML(result.comparison, ["共同卡点", "操作方式差异"])}
+      ${checks ? `<section class="mirror-persona-checks"><h3>按 Persona 预演</h3><div class="insight-list">${checks}</div></section>` : ""}
+      <div class="issue-list">${result.issues.map((issue, index) => {
+        const people = reportPersonaNames(issue.personaIds, result.personas);
+        return `<article class="issue-card"><span class="issue-index">${index + 1}</span><div><h4>${escapeHTML(issue.title)}</h4>
+          <p>${escapeHTML(issue.detail)}</p>${issue.step ? `<p><strong>涉及步骤</strong> ${issue.step} · ${escapeHTML(result.path[issue.step - 1]?.text)}</p>` : ""}
+          ${people ? `<p><strong>可能受影响</strong> ${escapeHTML(people)}</p>` : ""}
+          ${issue.improvement ? `<p><strong>建议改法</strong> ${escapeHTML(issue.improvement)}</p>` : ""}
+          ${issue.testMethod ? `<div class="issue-test"><strong>怎么验证</strong><p>${escapeHTML(issue.testMethod)}</p></div>` : ""}
+          <div class="issue-meta"><span class="tag ${issue.level === "高" ? "tag-red" : "tag-orange"}">${escapeHTML(issue.level)}优先级</span><span class="tag tag-gray">${escapeHTML(issue.dimension)}</span></div></div></article>`;
+      }).join("") || "<p>这轮文字预检未列出具体问题。可以用测试脚本继续观察。</p>"}</div>`;
   }
   if (tab === "scores" && Array.isArray(result.coverage)) {
     return `<div class="insight-list">${result.coverage.map(item => `<article class="insight">
@@ -729,7 +937,8 @@ function mirrorTabHTML(result, tab) {
   return renderMirrorTestPlan(result);
 }
 
-function runMirror(form) {
+async function runMirrorWithQwen(form) {
+  const runState = state;
   const data = new FormData(form);
   const selected = selectedRunPersonas("mirror", form);
   if (!selected.length) return;
@@ -742,6 +951,10 @@ function runMirror(form) {
   const description = material.replace(/https?:\/\/\S+/gi, "").trim();
   const reference = String(data.get("reference") || "").trim();
   const successCriteria = String(data.get("successCriteria") || "").trim();
+  const version = String(data.get("version") || "").trim();
+  const start = String(data.get("start") || "").trim();
+  const context = String(data.get("context") || "").trim();
+  const sparkHypothesis = sparkHypothesisOptions().find(item => item.id === data.get("hypothesisId"));
   if (!task || !successCriteria || !description) {
     const missing = !task ? ["#mirror-task", "请填写要测试的任务"]
       : !successCriteria ? ["#mirror-success", "请填写任务完成标准"]
@@ -756,52 +969,118 @@ function runMirror(form) {
     showToast("请输入至少一个可操作的原型步骤");
     return;
   }
-  const issues = [
-    { title:"用户能否独立找到入口并完成任务？", detail:"让目标用户从原型首页开始，记录完成时间、求助次数和停顿位置。", level:"高", dimension:"任务清晰度" },
-    { title:"用户能否理解结果并处理一次错误？", detail:"设置一次输入错误或误操作，观察用户能否理解反馈、修改或撤回。", level:"高", dimension:"错误预防与恢复" },
-    { title:"数据用途和授权范围是否清楚？", detail:"如果任务涉及个人数据，请用户说明产品需要读取什么、为什么读取，以及如何拒绝或删除。", level:"中", dimension:"信任与隐私" }
-  ];
-  const personaChecks = selected.map(persona => ({
-    name: persona.name,
-    ...(personaPainPrompts[persona.id] || {
-      concern: persona.desc,
-      observe: "围绕画像中的主要困难，记录这类用户在本轮任务的卡点、求助与恢复方式。"
-    })
-  }));
-  const result = {
-    id: `m${Date.now()}`,
-    title, task, successCriteria, materialType, material, reference, fileName,
-    personas: selected,
-    coverage: mirrorCoverage(description),
-    issues,
-    personaChecks,
-    path: steps.map(text => ({ text, status: "待观察" })),
-    createdAt: Date.now(),
-    date: "刚刚"
-  };
-  currentMirrorResult = result;
-  state.project.stage = "体验验证";
-  state.project.progress = Math.max(state.project.progress,72);
-  state.mirrorRuns.unshift(result);
-  state.reports.unshift({
-    id: result.id,
-    kind: "Mirror",
-    title: `${result.title} · 原型预演报告`,
-    desc: `${result.path.length} 个原型步骤、${selected.length} 类人群的观察点和测试计划`,
-    date: "刚刚",
-    createdAt: result.createdAt,
-    data: result
-  });
-  saveState();
-  document.querySelector("#mirror-result").innerHTML = mirrorResultHTML(result);
-  bindResultTabs();
-  showToast("Mirror 预演完成，报告已保存");
+  if (steps.length > 30 || steps.some(step => step.length > 500)) {
+    form.querySelector("#mirror-link").focus();
+    showToast("请保留最多 30 个步骤，每步不超过 500 字");
+    return;
+  }
+
+  const errorNotice = form.querySelector("[data-research-error]");
+  errorNotice.hidden = true;
+  setResearchFormBusy(form, true, "千问正在生成…");
+  try {
+    const response = await requestStudentResearch({
+      kind: "mirror",
+      project: { name: state.project.name, description: state.project.description || "" },
+      task,
+      successCriteria,
+      version,
+      start,
+      context,
+      sparkHypothesis: sparkHypothesis ? `${sparkHypothesis.label}\n${sparkHypothesis.detail}`.slice(0, 1200) : "",
+      prototypeSteps: steps,
+      personas: selected.map(qwenPersonaInput)
+    });
+    if (state !== runState) return;
+    const checksByPersona = new Map(response.data.personaChecks.map(item => [item.personaId, item]));
+    const personaChecks = selected.map(persona => {
+      const check = checksByPersona.get(persona.id);
+      return {
+        ...check,
+        name: persona.name,
+        concern: check?.concern || "本轮未返回该 Persona 的独立路径。",
+        observe: check?.observe || "围绕画像中的主要困难，记录卡点、求助与恢复方式。"
+      };
+    });
+    const result = {
+      id: `m${Date.now()}`,
+      title,
+      task,
+      successCriteria,
+      version,
+      start,
+      context,
+      sparkHypothesis,
+      materialType,
+      material,
+      reference,
+      fileName,
+      personas: selected,
+      coverage: mirrorCoverage(description),
+      issues: response.data.issues,
+      personaChecks,
+      metrics: response.data.metrics,
+      facilitatorNotes: response.data.facilitatorNotes,
+      summary: response.data.summary,
+      comparison: response.data.comparison,
+      taskPrompt: response.data.taskPrompt,
+      provider: "qwen",
+      model: response.model,
+      responseId: response.responseId,
+      quota: response.quota,
+      path: steps.map(text => ({ text, status: "待观察" })),
+      createdAt: Date.now(),
+      date: "刚刚"
+    };
+    currentMirrorResult = result;
+    state.project.stage = "体验验证";
+    state.project.progress = Math.max(state.project.progress, 72);
+    state.mirrorRuns.unshift(result);
+    state.reports.unshift({
+      id: result.id,
+      kind: "Mirror",
+      title: `${result.title} · 原型预检报告`,
+      desc: `千问生成：${result.path.length} 个原型步骤、${selected.length} 类人群观察点与待验证问题`,
+      date: "刚刚",
+      createdAt: result.createdAt,
+      provider: "qwen",
+      model: response.model,
+      data: result
+    });
+    saveState();
+    const panel = document.querySelector("#mirror-result");
+    if (panel) {
+      panel.innerHTML = mirrorResultHTML(result);
+      bindResultTabs();
+    }
+    showToast("千问原型预检报告已生成并保存");
+  } catch (error) {
+    errorNotice.textContent = error instanceof Error ? error.message : "千问报告生成失败，请稍后重试";
+    errorNotice.hidden = false;
+  } finally {
+    setResearchFormBusy(form, false, "");
+  }
 }
 
 function renderPersonas() {
   return `
-    <div class="page-heading"><div><p class="eyebrow">PERSONA LIBRARY</p><h1>Persona 用户库</h1><p>查看预设人群，或为当前项目添加自定义人群。每轮参与的人群在 Spark 或 Mirror 中勾选。</p></div><div class="heading-actions"><button class="button button-primary" data-open-modal="persona">＋ 创建 Persona</button></div></div>
-    <div class="grid grid-3">${state.personas.map(p=>`<article class="card persona-card"><div class="persona-cover"><span class="persona-large-avatar" style="background:${p.color}">${escapeHTML(p.short)}</span><span class="tag ${p.type === "平台预设" ? "tag-purple" : "tag-green"}">${escapeHTML(p.type)}</span></div><div class="persona-content"><h3>${escapeHTML(p.name)}</h3><p>${escapeHTML(p.desc)}</p><div class="trait-list">${p.traits.map(t=>`<span class="trait">${escapeHTML(t)}</span>`).join("")}</div></div></article>`).join("")}</div>`;
+    <div class="page-heading"><div><p class="eyebrow">PERSONA LIBRARY</p><h1>Persona 用户库</h1><p>为当前项目创建可复用的虚拟用户。Spark 和 Mirror 可以选择同一张画像卡。</p></div><div class="heading-actions"><button class="button button-primary" data-open-modal="persona">＋ 创建 Persona</button></div></div>
+    <div class="grid grid-3">${[...state.personas].sort((a, b) => Number(a.type === "平台预设") - Number(b.type === "平台预设")).map(personaCardHTML).join("")}</div>`;
+}
+
+function personaCardHTML(persona) {
+  const preset = persona.type === "平台预设";
+  const subtitle = personaSubtitle(persona);
+  const facts = personaFields.filter(field => !["age", "role"].includes(field.key) && persona.profile?.[field.key]);
+  return `<article class="card persona-card">
+    <div class="persona-cover"><span class="persona-large-avatar" style="background:${persona.color}">${escapeHTML(persona.short)}</span><span class="tag ${preset ? "tag-purple" : "tag-green"}">${escapeHTML(persona.type)}</span></div>
+    <div class="persona-content"><h3>${escapeHTML(persona.name)}</h3>
+      ${subtitle ? `<p class="persona-subtitle">${escapeHTML(subtitle)}</p>` : ""}
+      ${persona.desc ? `<p>${escapeHTML(persona.desc)}</p>` : ""}
+      ${facts.length ? `<dl class="persona-facts">${facts.map(field => `<div><dt>${field.label}</dt><dd>${escapeHTML(persona.profile[field.key])}</dd></div>`).join("")}</dl>` : ""}
+      <div class="trait-list">${(persona.traits || []).map(trait => `<span class="trait">${escapeHTML(trait)}</span>`).join("")}</div>
+      <button class="button button-secondary button-sm persona-edit" type="button" data-edit-persona="${escapeHTML(persona.id)}">${preset ? "以此为模板" : "编辑画像"}</button>
+    </div></article>`;
 }
 
 function renderMaterials() {
@@ -813,24 +1092,53 @@ function renderMaterials() {
     </section>`;
 }
 
+function reportCardMetrics(report) {
+  if (report.kind === "Spark") {
+    const run = normalizeSparkRun(report.data || {});
+    const stats = sparkReportStats(run);
+    return {
+      summary: run.summary || report.desc,
+      primary: `${stats.insightCount} 条假设`,
+      secondary: `${stats.linkedInsightCount} 条有资料关联`,
+      highPriority: (run.insights || []).filter(item => item.level === "高").length,
+      evidenceLinked: stats.linkedInsightCount
+    };
+  }
+  const run = normalizeMirrorRun(report.data || {});
+  return {
+    summary: run.summary || report.desc,
+    primary: `${run.issues.length} 个待验证问题`,
+    secondary: `${run.metrics.length || run.path.length} 项观察记录`,
+    highPriority: run.issues.filter(item => item.level === "高").length,
+    evidenceLinked: 0
+  };
+}
+
 function renderReports() {
+  const reports = state.reports || [];
+  const reportMetrics = reports.map(reportCardMetrics);
+  const aiReportCount = reports.filter(report => report.provider === "qwen").length;
+  const highPriorityCount = reportMetrics.reduce((sum, item) => sum + item.highPriority, 0);
+  const evidenceLinkedCount = reportMetrics.reduce((sum, item) => sum + item.evidenceLinked, 0);
   return `
-    <div class="page-heading"><div><p class="eyebrow">REPORTS</p><h1>验证报告</h1><p>集中查看每次 Spark 需求探索和 Mirror 体验预演的结论、来源类型与优先级。</p></div></div>
-    <div class="callout callout-warning" style="margin-bottom:18px"><strong>结论边界：</strong>Demo 中的报告是展示用示例。正式版会区分“原始资料事实、Persona 推演、模型推断与待验证假设”，避免把模拟结果当成真实用户结论。</div>
-    ${state.reports.length ? `<div class="grid grid-3">${state.reports.map(r=>`<article class="card report-card"><div class="report-card-top"><span class="report-icon" style="${r.kind==="Mirror"?"color:var(--green);background:var(--green-soft)":""}">${r.kind==="Spark"?"✦":"◫"}</span><span class="tag ${r.kind==="Spark"?"tag-orange":"tag-green"}">${r.kind}</span></div><h3>${escapeHTML(r.title)}</h3><p>${escapeHTML(r.desc)}</p><div class="report-footer"><span>${formatRelativeTime(r.createdAt)} · 本地演示</span><span><button class="link-button" data-view-report="${r.id}">查看</button><button class="link-button" data-download-report="${r.id}">导出 ↓</button></span></div></article>`).join("")}</div>` : `<article class="card empty-state"><div><div class="empty-illustration">▥</div><h3>还没有验证报告</h3><p>完成一次 Spark 或 Mirror 后，报告会自动保存到这里，并支持导出为 Markdown 文档。</p><div style="display:flex;gap:8px;justify-content:center;margin-top:16px"><button class="button button-purple button-sm" data-go="spark">运行 Spark</button><button class="button button-green button-sm" data-go="mirror">运行 Mirror</button></div></div></article>`}`;
+    <div class="page-heading"><div><p class="eyebrow">REPORTS</p><h1>研究与验证报告</h1><p>集中查看 AI 推测、资料关联、待验证问题和下一步真人研究计划。</p></div></div>
+    <div class="callout callout-warning" style="margin-bottom:18px"><strong>结论边界：</strong>千问生成内容属于模型推断和待验证假设；只有可回溯原始资料与真人测试记录才能作为研究证据。</div>
+    ${reports.length ? `<div class="report-overview-grid"><article><span>报告总数</span><strong>${reports.length}</strong><small>Spark 与 Mirror</small></article><article><span>真实 AI 报告</span><strong>${aiReportCount}</strong><small>千问结构化生成</small></article><article><span>高优先级问题</span><strong>${highPriorityCount}</strong><small>建议优先验证</small></article><article><span>资料关联假设</span><strong>${evidenceLinkedCount}</strong><small>仍需真人核验</small></article></div><div class="grid grid-3">${reports.map((r,index)=>{ const metrics = reportMetrics[index]; return `<article class="card report-card"><div class="report-card-top"><span class="report-icon" style="${r.kind==="Mirror"?"color:var(--green);background:var(--green-soft)":""}">${r.kind==="Spark"?"✦":"◫"}</span><span class="tag ${r.kind==="Spark"?"tag-orange":"tag-green"}">${escapeHTML(r.kind)}</span></div><h3>${escapeHTML(r.title)}</h3><p class="report-card-summary">${escapeHTML(metrics.summary)}</p><div class="report-card-metrics"><span>${escapeHTML(metrics.primary)}</span><span>${escapeHTML(metrics.secondary)}</span></div><div class="report-card-trace"><span>${r.provider === "qwen" ? `千问 ${escapeHTML(r.model || "")}` : "历史演示记录"}</span><time>${formatReportTime(r.createdAt)}</time></div><div class="report-footer"><span>${formatRelativeTime(r.createdAt)}</span><span><button class="link-button" data-view-report="${escapeHTML(r.id)}">打开报告</button><button class="link-button" data-download-report="${escapeHTML(r.id)}">导出 ↓</button></span></div></article>`; }).join("")}</div>` : `<article class="card empty-state"><div><div class="empty-illustration">▥</div><h3>还没有验证报告</h3><p>完成一次 Spark 或 Mirror 后，报告会自动保存到这里，并支持导出为 Markdown 文档。</p><div style="display:flex;gap:8px;justify-content:center;margin-top:16px"><button class="button button-purple button-sm" data-go="spark">运行 Spark</button><button class="button button-green button-sm" data-go="mirror">运行 Mirror</button></div></div></article>`}`;
 }
 
 function bindPageEvents() {
   document.querySelectorAll("[data-go]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.go)));
   document.querySelectorAll("[data-open-modal]").forEach(el => el.addEventListener("click", () => openModal(el.dataset.openModal)));
+  document.querySelectorAll("[data-edit-persona]").forEach(button => button.addEventListener("click", () =>
+    openPersonaEditor(state.personas.find(persona => persona.id === button.dataset.editPersona))));
   document.querySelectorAll("[data-open-project]").forEach(el => el.addEventListener("click", () => openProject(el.dataset.openProject, el.dataset.projectDestination)));
   document.querySelectorAll("[data-project-edit]").forEach(el => el.addEventListener("click", () => editProject(el.dataset.projectEdit)));
   document.querySelectorAll("[data-project-duplicate]").forEach(el => el.addEventListener("click", () => duplicateProject(el.dataset.projectDuplicate)));
   document.querySelectorAll("[data-project-archive]").forEach(el => el.addEventListener("click", () => archiveProject(el.dataset.projectArchive)));
   document.querySelectorAll("[data-project-restore]").forEach(el => el.addEventListener("click", () => restoreProject(el.dataset.projectRestore)));
   document.querySelectorAll("[data-project-delete]").forEach(el => el.addEventListener("click", () => deleteProject(el.dataset.projectDelete)));
-  document.querySelector("#spark-form")?.addEventListener("submit", e => { e.preventDefault(); runSpark(e.currentTarget); });
-  document.querySelector("#mirror-form")?.addEventListener("submit", e => { e.preventDefault(); runMirror(e.currentTarget); });
+  document.querySelector("#spark-form")?.addEventListener("submit", e => { e.preventDefault(); void runSparkWithQwen(e.currentTarget); });
+  document.querySelector("#mirror-form")?.addEventListener("submit", e => { e.preventDefault(); void runMirrorWithQwen(e.currentTarget); });
   document.querySelector("#mirror-reference")?.addEventListener("invalid", event => {
     event.currentTarget.closest("details").open = true;
   });
@@ -1125,12 +1433,69 @@ function openProjectWizard(editing = false) {
   form.querySelector("#wizard-name")?.focus();
 }
 
+function openPersonaEditor(persona) {
+  const editing = persona?.type === "自定义";
+  const root = document.querySelector("#modal-root");
+  const title = editing ? "编辑 Persona" : "创建 Persona";
+  const fields = personaFields.map(field => {
+    const value = escapeHTML(persona?.profile?.[field.key] || "");
+    const attrs = `id="persona-${field.key}" name="${field.key}" maxlength="${field.max}" placeholder="${field.hint}"`;
+    return `<div class="form-group"><label class="form-label" for="persona-${field.key}">${field.label}</label>
+      ${field.multiline ? `<textarea class="textarea" ${attrs} rows="2">${value}</textarea>` : `<input class="input" ${attrs} value="${value}">`}</div>`;
+  });
+  root.innerHTML = `<div class="modal-backdrop" data-close-modal>
+    <form class="modal persona-modal" role="dialog" aria-modal="true" aria-labelledby="persona-editor-title">
+      <div class="modal-head"><h2 id="persona-editor-title">${title}</h2><button type="button" class="modal-close" data-close-modal aria-label="关闭">×</button></div>
+      <div class="modal-body">
+        <p class="persona-form-note">名称必填，其余按研究需要填写。请使用虚拟称呼和脱敏资料编号。</p>
+        <div class="form-group"><label class="form-label" for="persona-name">画像名称 <small>必填</small></label>
+          <input class="input" id="persona-name" name="name" required maxlength="80" value="${escapeHTML(persona?.name || "")}" placeholder="如：赶着上课的学生"></div>
+        <div class="grid grid-2 persona-demographics">${fields.slice(0, 2).join("")}</div>
+        ${fields.slice(2, 5).join("")}
+        <details class="lab-optional"${persona?.profile?.basis || persona?.desc || persona?.traits?.length ? " open" : ""}>
+          <summary>补充依据、说明和标签 <small>选填</small></summary>
+          ${fields[5]}
+          <div class="form-group"><label class="form-label" for="persona-desc">其他说明</label><textarea class="textarea" id="persona-desc" name="description" rows="2" maxlength="500" placeholder="如：只在遇到排期冲突时打开工具">${escapeHTML(persona?.desc || "")}</textarea></div>
+          <div class="form-group"><label class="form-label" for="persona-traits">标签</label><input class="input" id="persona-traits" name="traits" maxlength="400" value="${escapeHTML((persona?.traits || []).join("，"))}" placeholder="多个标签用逗号分隔，如：通勤、移动端"></div>
+        </details>
+      </div>
+      <div class="modal-footer"><button type="button" class="button button-secondary" data-close-modal>取消</button><button class="button button-primary" type="submit">保存画像</button></div>
+    </form></div>`;
+  bindModalDismissal(root);
+  root.querySelector("form").addEventListener("submit", event => {
+    event.preventDefault();
+    const values = new FormData(event.currentTarget);
+    const read = key => String(values.get(key) || "").trim();
+    const name = read("name");
+    if (!name) {
+      root.querySelector("#persona-name").focus();
+      showToast("请填写画像名称");
+      return;
+    }
+    const updated = {
+      id: editing ? persona.id : createProjectId(),
+      name, short: Array.from(name)[0], type: "自定义",
+      color: persona?.color || "#5d7cbf",
+      desc: read("description"),
+      traits: read("traits").split(/[,，、]/).map(trait => trait.trim().slice(0, 80)).filter(Boolean).slice(0, 6),
+      profile: Object.fromEntries(personaFields.map(field => [field.key, read(field.key)])),
+    };
+    state.personas = editing ? state.personas.map(item => item.id === updated.id ? updated : item) : [...state.personas, updated];
+    saveState();
+    dismissModal(false);
+    renderPage();
+    document.querySelector("[data-open-modal='persona']")?.focus({ preventScroll: true });
+    showToast("Persona 画像已保存");
+  });
+  root.querySelector("#persona-name").focus();
+}
+
 function openModal(type) {
   if (type === "project") return openProjectWizard(true);
+  if (type === "persona") return openPersonaEditor();
   const root = document.querySelector("#modal-root");
   const configs = {
     project: { title:state.project.name === "未命名项目" ? "创建第一个验证项目" : "编辑项目", body:`<div class="callout callout-info" style="margin-bottom:16px"><strong>只需先说明方向：</strong>后续可以在 Spark 中继续澄清需求，或直接在 Mirror 中上传已有材料。</div><div class="form-group"><label class="form-label" for="modal-name">项目名称</label><input id="modal-name" class="input" value="${state.project.name === "未命名项目" ? "" : escapeHTML(state.project.name)}" placeholder="例如：校园 AI 学习助手"></div><div class="form-group"><label class="form-label" for="modal-desc">一句话说明</label><textarea id="modal-desc" class="textarea" placeholder="目标用户、场景和希望解决的问题">${state.project.name === "未命名项目" ? "" : escapeHTML(state.project.description)}</textarea></div>`, save:state.project.name === "未命名项目" ? "创建项目" : "保存项目" },
-    persona: { title:"创建自定义 Persona", body:`<div class="form-group"><label class="form-label" for="modal-name">Persona 名称</label><input id="modal-name" class="input" placeholder="例如：通勤场景下的研究生"></div><div class="form-group"><label class="form-label" for="modal-desc">行为与需求说明</label><textarea id="modal-desc" class="textarea" placeholder="描述目标、情境、行为特点和主要顾虑"></textarea></div><div class="form-group"><label class="form-label" for="modal-traits">特征标签</label><input id="modal-traits" class="input" placeholder="用逗号分隔，如：时间紧张, 移动端, 重视效率"></div>`, save:"创建 Persona" },
     material: { title:"添加一份需求资料", body:`<div class="form-group"><label class="form-label" for="modal-name">资料标题</label><input id="modal-name" class="input" placeholder="例如：第 3 位用户访谈摘录"></div><div class="grid grid-2"><div class="form-group"><label class="form-label" for="modal-type">资料类型</label><select id="modal-type" class="select"><option>用户访谈</option><option>问卷</option><option>用户评价</option><option>客服记录</option><option>行业资料</option><option>竞品资料</option></select></div><div class="form-group"><label class="form-label" for="modal-source">来源</label><input id="modal-source" class="input" placeholder="用户上传 / 公开网页"></div></div><div class="form-group"><label class="form-label" for="modal-desc">原始内容或摘要</label><textarea id="modal-desc" class="textarea" placeholder="尽量保留原始表达，便于后续追溯"></textarea></div>`, save:"保存资料" }
   };
   const c = configs[type];
@@ -1147,9 +1512,6 @@ function saveModal(type) {
   if (!name) { showToast("请先填写名称"); return; }
   if (type === "project") {
     state.project.name = name; state.project.description = desc || "尚未填写项目说明"; state.project.stage = "探索期"; state.project.progress = Math.max(state.project.progress,20);
-  } else if (type === "persona") {
-    const traits = root.querySelector("#modal-traits").value.split(/[,，]/).map(x=>x.trim()).filter(Boolean).slice(0,4);
-    state.personas.push({ id:`p${Date.now()}`,name,short:name[0],color:"#5d7cbf",type:"自定义",desc:desc||"用户创建的自定义 Persona",traits:traits.length?traits:["自定义"] });
   } else {
     const materialType = root.querySelector("#modal-type").value;
     state.materials.unshift({ id:createProjectId(),title:name,type:materialType,source:root.querySelector("#modal-source").value.trim()||"用户录入",content:desc||"未填写内容摘要",createdAt:Date.now(),icon:materialType[0] });
@@ -1177,7 +1539,7 @@ function useMirrorPlan(id) {
   state.mirrorValidationRunId = id;
   const project = getStudentProject();
   const updates = {};
-  if (run.task && !hasStudentFields(project, "testTask")) updates.testTask = run.task;
+  if (run.task && !hasStudentFields(project, "testTask")) updates.testTask = run.taskPrompt || run.task;
   if (run.successCriteria && !hasStudentFields(project, "successMetric")) updates.successMetric = run.successCriteria;
   if (Object.keys(updates).length) state.studentProject = { ...state.studentProject, ...updates };
   saveState();
@@ -1190,35 +1552,77 @@ function useMirrorPlan(id) {
 function downloadReport(id) {
   const report = state.reports.find(r=>r.id===id);
   if (!report) return;
-  let body = `# ${report.title}\n\n> PersonaLab 本地演示报告。内容为示例仿真，不代表真实用户研究结论。\n\n${report.desc}\n\n`;
+  const data = report.kind === "Spark" ? normalizeSparkRun(report.data) : normalizeMirrorRun(report.data);
+  let body = `# ${report.title}\n\n`;
+  body += `> 研究边界：${report.provider === "qwen" ? `由千问 ${report.model || ""} 生成，内容属于 AI 推测与待验证假设` : "历史演示内容"}。只有可回溯资料和真人测试记录可以作为研究证据。\n\n`;
+  body += `- 报告类型：${report.kind}\n- 生成时间：${formatReportTime(report.createdAt)}\n- 生成方式：${report.provider === "qwen" ? `千问 ${report.model || ""}` : "历史演示记录"}\n${data.responseId ? `- 生成记录 ID：${data.responseId}\n` : ""}\n`;
+  if (data.summary) body += `## 执行摘要\n\n${data.summary}\n\n`;
   const inputFields = report.kind === "Spark"
-    ? [["目标用户与使用场景", report.data.scene], ["想弄清的问题", report.data.direction], ["现有做法", report.data.currentApproach]]
-    : [["测试任务", report.data.task], ["完成标准", report.data.successCriteria], ["原型操作步骤", report.data.material],
-      ["原型链接", report.data.reference], ["附件名称", report.data.fileName]];
+    ? [["目标用户与使用场景", data.scene], ["研究问题", data.direction], ["现有做法", data.currentApproach], ["候选方案", data.concept]]
+    : [["测试任务", data.task], ["完成标准", data.successCriteria], ["原型版本", data.version],
+      ["任务起点", data.start], ["测试条件", data.context], ["关联 Spark 假设", data.sparkHypothesis?.label],
+      ["读给参与者的任务", data.taskPrompt], ["原型操作步骤", data.material],
+      ["原型链接", data.reference], ["附件名称", data.fileName]];
   body += inputFields.filter(([, value]) => value).map(([label, value]) => `## ${label}\n\n${value}\n\n`).join("");
-  const names = (report.data.personas || []).map(persona => persona.name);
-  if (names.length) body += `## 本轮 Persona\n\n${names.map(name => `- ${name}`).join("\n")}\n\n`;
+  const personas = data.personas || [];
+  if (personas.length) body += `## 本轮 Persona\n\n${personas.map(persona => {
+    const fields = personaFields.filter(field => persona.profile?.[field.key]).map(field => `  - ${field.label}：${persona.profile[field.key]}`);
+    return [`- **${persona.name}**`, ...fields].join("\n");
+  }).join("\n")}\n\n`;
+  if (data.comparison) {
+    const labels = report.kind === "Spark" ? ["共同需求", "人群分歧"] : ["共同卡点", "操作方式差异"];
+    body += `## 人群比较\n\n- ${labels[0]}：${data.comparison.shared}\n- ${labels[1]}：${data.comparison.differences}\n\n`;
+  }
   if (report.kind === "Spark") {
-    body += `## 需求与机会\n\n${report.data.insights.map(i=>`- **${i.title}**（${i.level}优先级，来源类型：${i.source}）\n  ${i.detail}${i.evidenceIds?.length ? `\n  依据：${i.evidenceIds.join("、")}` : ""}`).join("\n")}\n\n## 来源记录\n\n${(report.data.evidence || []).map(item=>`- **${item.id} ${item.title}**（${item.status}）\n  ${item.quote}\n  来源：${item.source}`).join("\n") || "本轮没有可追溯资料。"}\n`;
+    if (data.dialogue?.length) body += `## AI Persona 视角\n\n${data.dialogue.map(item => [
+      `- **${item.name}**：${item.text}`,
+      item.goal && `  - 本轮目标：${item.goal}`,
+      item.rationale && `  - 推演依据：${item.rationale}`,
+    ].filter(Boolean).join("\n")).join("\n")}\n\n`;
+    body += `## 待验证假设\n\n${(data.insights || []).map((item, index) => {
+      const people = reportPersonaNames(item.personaIds, personas);
+      return [`- **H${index + 1} ${item.title}**（${item.level}优先级）`, `  ${item.detail}`,
+        people && `  - 适用人群：${people}`, item.condition && `  - 触发条件：${item.condition}`,
+        `  - 资料关联：${item.evidenceIds?.length ? item.evidenceIds.join("、") : "待补充"}`].filter(Boolean).join("\n");
+    }).join("\n") || "本轮没有生成假设。"}\n\n`;
+    body += `## 来源记录\n\n${(data.evidence || []).map(item=>`- **${item.id} ${item.title}**（${item.status}）\n  ${item.quote}\n  来源：${item.source}`).join("\n") || "本轮没有可追溯资料。"}\n\n`;
+    if (data.evidenceGaps?.length) body += `## 证据缺口\n\n${data.evidenceGaps.map(item => `- ${item}`).join("\n")}\n\n`;
+    if (data.validationPlan?.length) body += `## 下一步验证计划\n\n${data.validationPlan.map((item,index) => `${index + 1}. **${item.objective}**\n   - 执行方法：${item.method}\n   - 支持信号：${item.successSignal}${item.reviseSignal ? `\n   - 何时调整判断：${item.reviseSignal}` : ""}`).join("\n")}\n\n`;
   } else {
-    const run = normalizeMirrorRun(report.data);
+    const run = data;
     if (run.path.length) {
       body += `## 按原型步骤走查\n\n${run.path.map((step, index) => `${index + 1}. ${step.text}`).join("\n")}\n\n`;
     }
-    body += "## 真人测试记录项\n\n- 是否达到完成标准\n- 耗时\n- 停顿、错误或求助出现在哪一步\n- 用户如何恢复或放弃\n\n";
+    if (run.metrics.length) {
+      body += `## 真人测试观察指标\n\n${run.metrics.map(item => `- **${item.name}**\n  - 记录方式：${item.howToRecord}\n  - 成功信号：${item.successSignal}`).join("\n")}\n\n`;
+    } else {
+      body += "## 真人测试记录项\n\n- 是否达到完成标准\n- 耗时\n- 停顿、错误或求助出现在哪一步\n- 用户如何恢复或放弃\n\n";
+    }
     if (Array.isArray(run.coverage)) {
       body += `## 检查范围\n\n${run.coverage.map(item => `- ${item.name}（${item.status}）\n  ${item.followUp}`).join("\n")}\n\n`;
     } else if (run.scores.length) {
       body += `## 历史示例评分\n\n${run.scores.map(score => `- ${score.name}：${score.score == null ? "暂不评分" : `${score.score}/${score.max}`}`).join("\n")}\n\n`;
     }
     if (run.issues?.length) {
-      body += `## 主要问题\n\n${run.issues.map(issue => `- **${issue.title}**\n  ${issue.detail}`).join("\n")}\n`;
+      body += `## 待验证问题\n\n${run.issues.map(issue => {
+        const people = reportPersonaNames(issue.personaIds, personas);
+        return [`- **${issue.title}**（${issue.level}优先级 · ${issue.dimension}）`, `  ${issue.detail}`,
+          issue.step && `  - 涉及步骤：${issue.step}`, people && `  - 可能受影响：${people}`,
+          issue.improvement && `  - 建议改法：${issue.improvement}`, issue.testMethod && `  - 验证方法：${issue.testMethod}`].filter(Boolean).join("\n");
+      }).join("\n")}\n\n`;
     }
-    if (report.data.personaChecks?.length) {
-      body += `\n## 本轮人群观察点\n\n${report.data.personaChecks.map(check =>
-        `- ${check.name} · ${check.concern}\n  走查时观察 ${check.observe}`).join("\n")}\n`;
+    if (run.personaChecks?.length) {
+      body += `## 本轮人群操作路径\n\n${run.personaChecks.map(check => [
+        `- **${check.name}** · ${check.concern}`,
+        check.path && `  - 预演路径：${check.path.length ? check.path.map(step => `步骤 ${step}`).join(" → ") : "待确认"}`,
+        check.rationale && `  - 路径依据：${check.rationale}`,
+        check.recovery && `  - 遇阻后的处理：${check.recovery}`,
+        `  - 走查时观察：${check.observe}`,
+      ].filter(Boolean).join("\n")).join("\n")}\n`;
     }
+    if (run.facilitatorNotes?.length) body += `\n## 主持人提示\n\n${run.facilitatorNotes.map(note => `- ${note}`).join("\n")}\n`;
   }
+  body += `\n---\n\n导出自 PersonaLab。请在正式结论中补充参与者信息、研究日期、原文或观察记录，并保留去标识化处理说明。\n`;
   const blob = new Blob([body],{type:"text/markdown;charset=utf-8"});
   const url = URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`${report.title.replace(/[\\/:*?"<>|]/g,"-")}.md`; a.click(); URL.revokeObjectURL(url); showToast("报告已导出");
 }

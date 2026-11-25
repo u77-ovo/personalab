@@ -50,15 +50,6 @@ const studentSample = {
   materialId: ""
 };
 
-const personaPainPrompts = {
-  p1: { concern: "首次进入时看不懂价值与入口", observe: "能否在 30 秒内说出产品用途并找到核心任务" },
-  p2: { concern: "重复操作和维护成本过高", observe: "完成高频任务需要几步，是否出现重复录入" },
-  p3: { concern: "不清楚数据用途和授权范围", observe: "能否说明产品读取了什么，以及如何拒绝或删除" },
-  p4: { concern: "专业词汇和复杂流程造成误操作", observe: "遇到错误后能否理解提示并恢复" },
-  p5: { concern: "关键信息只靠颜色或鼠标操作", observe: "能否使用键盘、文字提示和清晰层级完成任务" },
-  p6: { concern: "部署成本、责任边界和维护方式不清楚", observe: "能否说清谁负责、需要哪些资源，以及出现错误时如何处理" }
-};
-
 function getRunPersonas(source) {
   const personas = new Map();
   for (const run of [...source.sparkRuns, ...source.mirrorRuns]) {

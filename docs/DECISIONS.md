@@ -2,7 +2,7 @@
 
 ## ADR-001：先交付诚实可运行的 Local Demo
 
-当前目录没有既有源码，也没有 Supabase/OpenAI 凭据。因此第一阶段采用浏览器 LocalStorage 与服务端 Demo Fixture，所有界面显式标注 Demo，不生成虚假来源。
+项目初始阶段没有 Supabase 或千问凭据，因此第一阶段采用浏览器 LocalStorage 与服务端 Demo Fixture，所有界面显式标注 Demo，不生成虚假来源。学生版真实 AI 现统一选择千问。
 
 ## ADR-002：证据校验必须在服务端 Route Handler 执行
 

@@ -73,8 +73,8 @@ APP_BASE_URL=https://你的正式域名
 
 ## 发布前禁止事项
 
-- 不提交 `.env.local`、数据库密码、secret/service-role key 或 OpenAI key。
+- 不提交 `.env.local`、数据库密码、secret/service-role key 或千问 key。
 - 不在 RLS 测试前上传真实访谈材料。
 - 不把 publishable key 当成权限系统；真正限制数据的是登录身份、表授权和 RLS。
-- 不在浏览器代码中调用 OpenAI secret key。
+- 不在浏览器代码中调用千问 API Key。
 - 不把“网页打开成功”当成“数据隔离验证成功”。

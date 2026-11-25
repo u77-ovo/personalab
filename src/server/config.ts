@@ -9,8 +9,11 @@ const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: optionalSecret,
   SUPABASE_SECRET_KEY: optionalSecret,
   SUPABASE_SERVICE_ROLE_KEY: optionalSecret,
-  OPENAI_API_KEY: optionalSecret,
-  OPENAI_MODEL: optionalSecret,
+  QWEN_API_KEY: optionalSecret,
+  QWEN_BASE_URL: optionalSecret.pipe(z.string().url().optional()),
+  QWEN_MODEL: optionalSecret,
+  AI_LIVE_ENABLED: z.enum(["true", "false"]).default("false"),
+  AI_REQUESTS_PER_HOUR: z.coerce.number().int().min(1).max(100).default(10),
   APP_BASE_URL: z.string().url().default("http://localhost:3000"),
 });
 
@@ -22,9 +25,12 @@ export type ServerConfig = {
     publishableKey?: string;
     secretKey?: string;
   };
-  openai: {
+  qwen: {
     apiKey?: string;
-    model?: string;
+    baseUrl?: string;
+    model: string;
+    liveEnabled: boolean;
+    requestsPerHour: number;
   };
 };
 
@@ -36,7 +42,8 @@ export type RuntimeStatus = {
   storageConfigured: boolean;
   rlsVerified: boolean;
   dataReady: boolean;
-  openaiConfigured: boolean;
+  qwenConfigured: boolean;
+  aiLiveEnabled: boolean;
   deploymentConfigured: boolean;
   problems: string[];
   warnings: string[];
@@ -64,9 +71,12 @@ export function parseServerConfig(env: Record<string, string | undefined>): Serv
       publishableKey,
       secretKey: parsed.SUPABASE_SECRET_KEY ?? parsed.SUPABASE_SERVICE_ROLE_KEY,
     },
-    openai: {
-      apiKey: parsed.OPENAI_API_KEY,
-      model: parsed.OPENAI_MODEL,
+    qwen: {
+      apiKey: parsed.QWEN_API_KEY,
+      baseUrl: parsed.QWEN_BASE_URL,
+      model: parsed.QWEN_MODEL ?? "qwen3.8-flash",
+      liveEnabled: parsed.AI_LIVE_ENABLED === "true",
+      requestsPerHour: parsed.AI_REQUESTS_PER_HOUR,
     },
   };
 }
@@ -100,7 +110,12 @@ export function inspectRuntimeConfig(env: Record<string, string | undefined> = p
     storageConfigured: storageVerified,
     rlsVerified,
     dataReady: rlsVerified && storageVerified,
-    openaiConfigured: Boolean(env.OPENAI_API_KEY?.trim()),
+    qwenConfigured: Boolean(env.QWEN_API_KEY?.trim() && env.QWEN_BASE_URL?.trim()),
+    aiLiveEnabled: Boolean(
+      env.QWEN_API_KEY?.trim()
+      && env.QWEN_BASE_URL?.trim()
+      && env.AI_LIVE_ENABLED === "true"
+    ),
     deploymentConfigured: Boolean(env.VERCEL_URL?.trim() || env.APP_BASE_URL?.startsWith("https://")),
     problems,
     warnings,

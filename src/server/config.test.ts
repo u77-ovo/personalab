@@ -54,4 +54,22 @@ describe("server configuration", () => {
     const status = inspectRuntimeConfig({ APP_MODE: "demo", SUPABASE_SECRET_KEY: "sb_secret_do-not-leak" });
     expect(JSON.stringify(status)).not.toContain("sb_secret_do-not-leak");
   });
+
+  it("enables Qwen only when key, base URL, and the live switch are configured", () => {
+    const disabled = inspectRuntimeConfig({
+      APP_MODE: "demo",
+      QWEN_API_KEY: "sk-test",
+      QWEN_BASE_URL: "https://example.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+    });
+    const enabled = inspectRuntimeConfig({
+      APP_MODE: "demo",
+      QWEN_API_KEY: "sk-test",
+      QWEN_BASE_URL: "https://example.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      AI_LIVE_ENABLED: "true",
+    });
+    expect(disabled.qwenConfigured).toBe(true);
+    expect(disabled.aiLiveEnabled).toBe(false);
+    expect(enabled.aiLiveEnabled).toBe(true);
+    expect(JSON.stringify(enabled)).not.toContain("sk-test");
+  });
 });

@@ -30,10 +30,10 @@ async function withEvidenceFiles(mode, action) {
 }
 
 function saveProjectMaterials(projectId, updateMaterials) {
-  const index = projectLibrary.findIndex(item => item.project.id === projectId);
-  if (index < 0 || projectLibrary[index].project.archived) throw new Error("此项目已归档或删除。请在进行中的项目中操作。");
+  const projects = readProjectLibrary() ?? projectLibrary;
+  const source = projects.find(item => item.project.id === projectId);
+  if (!source || source.project.archived) throw new Error("此项目已归档或删除。请在进行中的项目中操作。");
   const isOpen = state.project.id === projectId;
-  const source = isOpen ? state : projectLibrary[index];
   const updatedAt = Date.now();
   const updated = {
     ...source,
@@ -41,16 +41,21 @@ function saveProjectMaterials(projectId, updateMaterials) {
     project: { ...source.project, updatedAt },
     updatedAt
   };
-  const projects = [...projectLibrary];
-  projects[index] = snapshotState(updated);
-  projects.sort((a, b) => b.project.updatedAt - a.project.updatedAt);
-  localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
-  projectLibrary = projects;
-  if (isOpen) state = updated;
+  saveProjectLibrary(projects.map(item => item.project.id === projectId ? snapshotState(updated) : item));
+  if (isOpen) {
+    state = { ...state, materials: updated.materials, updatedAt, project: { ...state.project, updatedAt } };
+    savedProjectSnapshot = {
+      ...savedProjectSnapshot,
+      materials: snapshotState().materials,
+      project: { ...savedProjectSnapshot.project, updatedAt },
+      updatedAt
+    };
+  }
 }
 
 async function releaseEvidenceFiles(materials) {
-  const referenced = new Set(projectLibrary.flatMap(project => project.materials.map(item => item.attachment?.key)));
+  const projects = readProjectLibrary() ?? projectLibrary;
+  const referenced = new Set(projects.flatMap(project => project.materials.map(item => item.attachment?.key)));
   const removed = materials.map(item => item.attachment?.key).filter(key => key && !referenced.has(key));
   if (removed.length) await withEvidenceFiles("readwrite", store => { removed.forEach(key => store.delete(key)); });
 }

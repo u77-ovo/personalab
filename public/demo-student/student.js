@@ -201,16 +201,16 @@ function renderStudent() {
   const activeProjects = projectLibrary.filter(item => !item.project.archived);
   return `
     <div class="student-workbench">
-      <header class="workbench-header student-page-heading">
-        <div class="workbench-identity"><p class="workbench-context">科创工作台${state.isSample ? ' <span class="tag tag-gray">演练案例</span>' : ""}</p>
-          <h1>${escapeHTML(state.project.name)}</h1>
-          <p class="workbench-description">${escapeHTML(state.project.description)}</p>
-        </div>
-        <div class="workbench-controls">
+      ${renderPageHeading({
+        eyebrow: "Project Workbench",
+        title: state.project.name,
+        description: state.project.description,
+        badge: state.isSample ? "演练案例" : "",
+        actions: `<div class="workbench-controls">
           <label for="workbench-project">切换项目</label><select class="select" id="workbench-project">${activeProjects.map(({ project: item }) => `<option value="${escapeHTML(item.id)}" ${item.id === state.project.id ? "selected" : ""}>${escapeHTML(item.name)}</option>`).join("")}</select>
           <label for="workbench-phase">项目阶段</label><select class="select" id="workbench-phase">${projectStages.map(phase => `<option ${phase === state.project.phase ? "selected" : ""}>${escapeHTML(phase)}</option>`).join("")}</select>
-        </div>
-      </header>
+        </div>`
+      })}
       <div class="student-view-tabs" role="tablist" aria-label="科创工作台">
         ${studentViews.map(([id, label]) => `<button type="button" role="tab" id="workbench-tab-${id}" class="student-view-tab ${studentActiveView === id ? "active" : ""}" data-student-view="${id}" aria-selected="${studentActiveView === id}" ${studentActiveView === id ? 'aria-controls="workbench-panel"' : 'tabindex="-1"'}>${label}</button>`).join("")}
       </div>
@@ -502,48 +502,83 @@ function renderDeliveryView(project) {
     </div>`;
 }
 
-function storeStudentProject(form, { trim = true, retry = false } = {}) {
+function storeStudentProject(form, { trim = true } = {}) {
   const data = new FormData(form);
   const current = getStudentProject();
   const updates = {};
   [...studentFields.map(field => field.key), "materialId"].forEach(key => {
     if (!data.has(key)) return;
     const value = String(data.get(key) || "");
-    updates[key] = trim ? value.trim() : value;
+    const next = trim ? value.trim() : value;
+    if ((current[key] || "") !== next) updates[key] = next;
   });
-  if (!retry && Object.entries(updates).every(([key, value]) => (current[key] || "") === value)) return false;
-  state.studentProject = {
-    ...current,
-    ...updates
-  };
-  if (Object.hasOwn(updates, "testResult") && updates.testResult !== (current.testResult || "")) {
+  if (!Object.keys(updates).length) return false;
+  const previous = state;
+  state = { ...state, studentProject: { ...state.studentProject, ...updates } };
+  if (Object.hasOwn(updates, "testResult")) {
     state.testResultRecordedAt = updates.testResult ? Date.now() : null;
   }
-  saveState();
+  try { saveState(); } catch (error) {
+    state = previous;
+    throw error;
+  }
   return true;
 }
 
 function saveStudentProject(form) {
-  storeStudentProject(form);
+  try { storeStudentProject(form); } catch {
+    return showToast("真人测试记录暂未保存，已保留表单内容。");
+  }
   renderPage();
   document.querySelector("#student-validation-form [type='submit']")?.focus({ preventScroll: true });
   showToast("真人测试记录已保存");
 }
 
+let blueprintSaveTimer = 0;
+
+// 连续输入时合并保存：停顿后才写一次本地存储，避免逐字全量序列化造成的卡顿
+function scheduleBlueprintSave(form) {
+  const status = document.querySelector("#blueprint-save-status");
+  if (status && form.dataset.saveFailed !== "true") {
+    status.textContent = "正在保存…";
+    status.classList.remove("save-error");
+  }
+  clearTimeout(blueprintSaveTimer);
+  blueprintSaveTimer = setTimeout(() => {
+    blueprintSaveTimer = 0;
+    saveBlueprint(form);
+  }, 420);
+}
+
+// 切步骤、失焦、导出前强制落盘，保证内容不丢
+function flushBlueprintSave(form) {
+  if (!blueprintSaveTimer) return saveBlueprint(form);
+  clearTimeout(blueprintSaveTimer);
+  blueprintSaveTimer = 0;
+  return saveBlueprint(form);
+}
+
 function saveBlueprint(form) {
   const status = document.querySelector("#blueprint-save-status");
   try {
-    const changed = storeStudentProject(form, { trim: false, retry: form.dataset.saveFailed === "true" });
-    if (!changed) return true;
+    const changed = storeStudentProject(form, { trim: false });
+    if (!changed && form.dataset.saveFailed !== "true") {
+      if (status) status.textContent = "已保存到当前浏览器";
+      return true;
+    }
     delete form.dataset.saveFailed;
-    status.textContent = "已保存到当前浏览器";
-    status.classList.remove("save-error");
+    if (status) {
+      status.textContent = "已保存到当前浏览器";
+      status.classList.remove("save-error");
+    }
     updateBlueprintProgress();
     return true;
   } catch {
     form.dataset.saveFailed = "true";
-    status.textContent = "本地保存失败。请先复制已填内容，保留此页面。";
-    status.classList.add("save-error");
+    if (status) {
+      status.textContent = "本地保存失败。请先复制已填内容，保留此页面。";
+      status.classList.add("save-error");
+    }
     return false;
   }
 }
@@ -570,14 +605,15 @@ function updateBlueprintProgress() {
 function bindBlueprint() {
   const form = document.querySelector("#student-form");
   if (!form) return;
-  form.addEventListener("input", () => saveBlueprint(form));
-  form.addEventListener("change", () => saveBlueprint(form));
+  form.addEventListener("input", () => scheduleBlueprintSave(form));
+  form.addEventListener("change", () => scheduleBlueprintSave(form));
+  form.addEventListener("focusout", () => flushBlueprintSave(form));
   form.addEventListener("submit", event => {
     event.preventDefault();
-    saveBlueprint(form);
+    flushBlueprintSave(form);
   });
   document.querySelectorAll("[data-blueprint-step]").forEach(button => button.addEventListener("click", () => {
-    if (button.getAttribute("aria-current") === "step" || !saveBlueprint(form)) return;
+    if (button.getAttribute("aria-current") === "step" || !flushBlueprintSave(form)) return;
     state.blueprintStep = button.dataset.blueprintStep;
     try {
       saveState();
@@ -592,6 +628,7 @@ function bindBlueprint() {
 function handleReadinessAction(action) {
   if (studentViews.some(([id]) => id === action)) {
     studentActiveView = action;
+    recordRoute("student", "push");
     renderPage();
     if (action === "validation") {
       focusWorkbenchSection(document.querySelector("#workbench-live-test h2"));
@@ -612,9 +649,10 @@ function focusWorkbenchSection(element) {
 
 function openWorkbenchView(button) {
   const blueprint = document.querySelector("#student-form");
-  if (blueprint && !saveBlueprint(blueprint)) return;
+  if (blueprint && !flushBlueprintSave(blueprint)) return;
   const fromBlueprintFooter = button.closest(".blueprint-footer");
   studentActiveView = button.dataset.studentView;
+  recordRoute("student", "push");
   renderPage();
   if (fromBlueprintFooter) focusWorkbenchSection(document.querySelector("#workbench-live-test h2"));
   else document.querySelector(`#workbench-tab-${studentActiveView}`)?.focus({ preventScroll: true });
@@ -644,7 +682,11 @@ function bindStudentPage() {
     }
   });
   const validationForm = document.querySelector("#student-validation-form");
-  validationForm?.addEventListener("change", event => storeStudentProject(event.currentTarget));
+  validationForm?.addEventListener("change", event => {
+    try { storeStudentProject(event.currentTarget); } catch {
+      showToast("真人测试记录暂未保存，已保留表单内容。");
+    }
+  });
   validationForm?.addEventListener("submit", event => { event.preventDefault(); saveStudentProject(event.currentTarget); });
   workbench.querySelectorAll("[data-student-view]").forEach(button => button.addEventListener("click", () => openWorkbenchView(button)));
   const tabs = [...workbench.querySelectorAll('[role="tab"]')];
@@ -657,12 +699,14 @@ function bindStudentPage() {
   });
   workbench.querySelectorAll("[data-validation-section]").forEach(button => button.addEventListener("click", () => {
     studentActiveView = "validation";
+    recordRoute("student", "push");
     renderPage();
     focusWorkbenchSection(document.querySelector(`#workbench-${button.dataset.validationSection} h2`));
   }));
   workbench.querySelectorAll("[data-run-jump]").forEach(button => button.addEventListener("click", () => {
     if (studentActiveView !== "validation") {
       studentActiveView = "validation";
+      recordRoute("student", "push");
       renderPage();
     }
     const record = document.getElementById(button.dataset.runJump);
@@ -697,7 +741,7 @@ function bindStudentPage() {
 
 function exportStudentProject() {
   const form = document.querySelector("#student-form");
-  if (form) saveBlueprint(form);
+  if (form) flushBlueprintSave(form);
   const project = getStudentProject();
   const readiness = getReadiness(project);
   const linkedMaterial = state.materials.find(item => item.id === project.materialId);

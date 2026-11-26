@@ -1,5 +1,6 @@
 const STORAGE_KEY = "personalab.student.v2";
 const PROJECTS_KEY = `${STORAGE_KEY}.projects`;
+const RESUME_ROUTE_KEY = `${STORAGE_KEY}.resume`;
 
 const projectStages = ["只有初步想法", "已确定项目方向", "已有产品原型", "正在进行用户验证", "正在准备比赛材料"];
 const projectTasks = ["寻找真实场景和痛点", "明确目标用户", "梳理产品需求", "完善产品原型", "开展用户验证", "整理比赛材料"];
@@ -79,10 +80,10 @@ const sampleState = () => ({
 const pageTitles = {
   workspace: "项目总览",
   student: "科创工作台",
-  spark: "Spark 播种",
-  mirror: "Mirror 预演",
+  spark: "Spark 需求探索",
+  mirror: "Mirror 原型预演",
   personas: "Persona 用户库",
-  materials: "需求资料库",
+  materials: "项目证据库",
   reports: "验证报告"
 };
 
@@ -90,8 +91,9 @@ let state = loadState();
 let projectLibrary = loadProjectLibrary(state);
 const savedActiveProject = projectLibrary.find(item => item.project.id === state.project.id);
 const latestActiveProject = projectLibrary.find(item => !item.project?.archived);
-if (savedActiveProject) state = normalizeStoredState(savedActiveProject);
-else if (!hasSavedProject(state) && latestActiveProject) state = normalizeStoredState(latestActiveProject);
+if (savedActiveProject && !savedActiveProject.project.archived) state = normalizeStoredState(savedActiveProject);
+else state = latestActiveProject ? normalizeStoredState(latestActiveProject) : initialState();
+let savedProjectSnapshot = snapshotState();
 let currentSparkResult = state.sparkRuns[0] || null;
 let currentMirrorResult = state.mirrorRuns[0] || null;
 
@@ -136,31 +138,69 @@ function normalizeStoredState(parsed = {}) {
 
 function loadProjectLibrary(active) {
   try {
-    const parsed = JSON.parse(localStorage.getItem(PROJECTS_KEY) || "[]");
-    const projects = Array.isArray(parsed) ? parsed.map(normalizeStoredState) : [];
-    if (hasSavedProject(active) && !projects.some(item => item.project.id === active.project.id)) projects.push(active);
-    return projects.sort((a, b) => (b.project.updatedAt || b.updatedAt || 0) - (a.project.updatedAt || a.updatedAt || 0));
-  } catch {
-    return hasSavedProject(active) ? [active] : [];
-  }
+    const projects = readProjectLibrary();
+    if (projects) return projects;
+  } catch {}
+  return hasSavedProject(active) ? [snapshotState(active)] : [];
 }
 
-function saveProjectLibrary() {
-  localStorage.setItem(PROJECTS_KEY, JSON.stringify(projectLibrary));
+function readProjectLibrary() {
+  const stored = localStorage.getItem(PROJECTS_KEY);
+  if (stored === null) return null;
+  const projects = JSON.parse(stored);
+  if (!Array.isArray(projects)) throw new Error("项目库格式无法读取");
+  return projects.map(normalizeStoredState).sort((a, b) => b.project.updatedAt - a.project.updatedAt);
+}
+
+function refreshProjectLibrary() {
+  try {
+    projectLibrary = readProjectLibrary() ?? projectLibrary;
+  } catch {}
+  return projectLibrary;
+}
+
+function saveProjectLibrary(projects) {
+  const sorted = [...projects].sort((a, b) => b.project.updatedAt - a.project.updatedAt);
+  localStorage.setItem(PROJECTS_KEY, JSON.stringify(sorted));
+  projectLibrary = sorted;
 }
 
 function snapshotState(source = state) {
   return JSON.parse(JSON.stringify({ ...source, activePage: "workspace" }));
 }
 
-function upsertCurrentProject() {
-  if (!hasSavedProject(state)) return;
-  const next = snapshotState();
-  const index = projectLibrary.findIndex(item => item.project.id === state.project.id);
-  if (index >= 0) projectLibrary[index] = next;
-  else projectLibrary.push(next);
-  projectLibrary.sort((a, b) => (b.project.updatedAt || 0) - (a.project.updatedAt || 0));
-  saveProjectLibrary();
+const projectRecordLists = new Set(["personas", "materials", "sparkRuns", "mirrorRuns", "reports"]);
+
+function mergeProjectRecords(before, after, latest, key) {
+  const baseline = new Map(before.map(record => [record.id, record]));
+  const local = new Map(after.map(record => [record.id, record]));
+  const records = latest
+    .filter(record => !baseline.has(record.id) || local.has(record.id))
+    .map(record => baseline.has(record.id)
+      ? mergeProjectChanges(baseline.get(record.id), local.get(record.id), record)
+      : record);
+  const additions = after.filter(record => !baseline.has(record.id) && !latest.some(item => item.id === record.id));
+  return key === "personas" ? [...records, ...additions] : [...additions, ...records];
+}
+
+function mergeProjectChanges(before, after, latest) {
+  const merged = { ...latest };
+  for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
+    const previous = before[key];
+    const value = after[key];
+    if (JSON.stringify(previous) === JSON.stringify(value)) continue;
+    if (!Object.hasOwn(after, key)) {
+      delete merged[key];
+    } else if (projectRecordLists.has(key) && Array.isArray(previous) && Array.isArray(value) && Array.isArray(merged[key])) {
+      merged[key] = mergeProjectRecords(previous, value, merged[key], key);
+    } else if (value && typeof value === "object" && !Array.isArray(value) &&
+      (previous === undefined || (previous && typeof previous === "object" && !Array.isArray(previous)))) {
+      merged[key] = mergeProjectChanges(previous ?? {}, value, merged[key]);
+    } else {
+      merged[key] = value;
+    }
+  }
+  return merged;
 }
 
 function normalizeSparkRun(run) {
@@ -176,25 +216,46 @@ function normalizeMirrorRun(run) {
   };
 }
 
-function saveState({ touch = true } = {}) {
-  if (touch) {
-    state.updatedAt = Date.now();
-    state.project.updatedAt = state.updatedAt;
-  }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  upsertCurrentProject();
+function saveState({ replace = false } = {}) {
+  if (!hasSavedProject(state)) return;
+  const projects = readProjectLibrary() ?? projectLibrary;
+  const id = state.project.id;
+  const latest = projects.find(item => item.project.id === id);
+  const existing = savedProjectSnapshot.project.id === id && hasSavedProject(savedProjectSnapshot);
+  if (existing && (!latest || latest.project.archived)) throw new Error("此项目已归档或删除");
+  const next = snapshotState();
+  next.updatedAt = next.project.updatedAt = Date.now();
+  const saved = existing && !replace ? mergeProjectChanges(savedProjectSnapshot, next, latest) : next;
+  if (existing && !replace) saved.project.progress = Math.max(Number(latest.project.progress) || 0, Number(next.project.progress) || 0);
+  saveProjectLibrary([...projects.filter(item => item.project.id !== id), saved]);
+  state.updatedAt = state.project.updatedAt = next.updatedAt;
+  savedProjectSnapshot = next;
+  // The project library is authoritative. Keep the older resume key for compatibility.
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...saved, activePage: state.activePage })); } catch {}
   syncResumeButton();
 }
 
 function syncResumeButton() {
   const button = document.querySelector("#resume-button");
   if (!button) return;
-  const resumeProject = hasSavedProject(state) && !state.project.archived
-    ? state
-    : projectLibrary.find(item => !item.project.archived);
+  const route = getResumeRoute();
+  const resumeProject = projectLibrary.find(item => item.project.id === route?.projectId);
   button.hidden = !resumeProject && !projectLibrary.length;
   button.firstChild.textContent = resumeProject ? "继续项目 " : "项目总览 ";
   button.title = resumeProject ? `继续 ${resumeProject.project.name}` : "查看项目总览";
+}
+
+function getResumeRoute() {
+  for (const storage of ["sessionStorage", "localStorage"]) {
+    try {
+      const route = JSON.parse(window[storage].getItem(RESUME_ROUTE_KEY) || "null");
+      if (Object.hasOwn(pageTitles, route?.page) &&
+        projectLibrary.some(item => item.project.id === route.projectId && !item.project.archived)) return route;
+    } catch {}
+  }
+  const activeProjects = projectLibrary.filter(item => !item.project.archived);
+  const project = activeProjects.find(item => item.project.id === state.project.id) || activeProjects[0];
+  return project ? { page: "student", projectId: project.project.id } : null;
 }
 
 function hasSavedProject() {
@@ -232,49 +293,108 @@ function showWorkspace() {
 }
 
 function enterDemo(mode = "resume", destination) {
-  if (mode === "sample") {
-    const savedSample = projectLibrary.find(item => item.isSample && !item.project.archived);
-    if (savedSample) {
-      state = normalizeStoredState(savedSample);
-    } else {
-      state = sampleState();
-      saveState();
+  refreshProjectLibrary();
+  if (mode === "resume") {
+    openAppRoute(getResumeRoute() || { page: "workspace" }, { historyMode: "push", focus: true });
+    return true;
+  }
+  const savedSample = projectLibrary.find(item => item.isSample && !item.project.archived);
+  if (savedSample) {
+    switchToStoredProject(savedSample);
+  } else {
+    const previous = state;
+    state = sampleState();
+    try { saveState(); } catch {
+      state = previous;
+      showToast("无法在此浏览器保存示例项目。请检查本地存储。");
+      return false;
     }
-  } else if (!hasSavedProject(state) || state.project.archived) {
-    state = normalizeStoredState(projectLibrary.find(item => !item.project.archived) || initialState());
   }
   currentSparkResult = state.sparkRuns[0] || null;
   currentMirrorResult = state.mirrorRuns[0] || null;
   showWorkspace();
   navigate(destination || state.activePage || "workspace");
   document.querySelector("#page-content").focus({ preventScroll: true });
+  return true;
 }
 
 function setMenuOpen(open, restoreFocus = false) {
   const sidebar = document.querySelector(".student-sidebar");
   const toggle = document.querySelector(".mobile-menu");
+  const content = document.querySelector(".app-main");
   sidebar.classList.toggle("open", open);
   toggle.setAttribute("aria-expanded", String(open));
+  content.inert = open;
   if (open) sidebar.querySelector(".nav-item.active")?.focus();
   if (restoreFocus) toggle.focus();
 }
 
-function showLanding() {
+window.matchMedia("(max-width: 760px)").addEventListener("change", event => {
+  if (!event.matches) setMenuOpen(false);
+});
+
+function recordRoute(page, mode, runId = "") {
+  if (!mode) return;
+  const url = new URL(location.href);
+  url.searchParams.set("view", page);
+  if (page !== "home" && hasSavedProject(state) && !state.project.archived) url.searchParams.set("project", state.project.id);
+  else url.searchParams.delete("project");
+  if (runId) url.searchParams.set("run", runId);
+  else url.searchParams.delete("run");
+  if (page === "student" && studentActiveView !== "overview") url.searchParams.set("panel", studentActiveView);
+  else url.searchParams.delete("panel");
+  if (page !== "home" || mode === "push") url.hash = "";
+  if (url.href !== location.href) history[mode === "replace" ? "replaceState" : "pushState"](null, "", url);
+  if (page !== "home" && url.searchParams.has("project")) {
+    const bookmark = JSON.stringify({
+      page,
+      projectId: url.searchParams.get("project"),
+      panel: url.searchParams.get("panel"),
+      runId: url.searchParams.get("run")
+    });
+    for (const storage of ["sessionStorage", "localStorage"]) {
+      try { window[storage].setItem(RESUME_ROUTE_KEY, bookmark); } catch {}
+    }
+  }
+}
+
+function showLanding({ historyMode = "push", focus = true, scroll = true } = {}) {
   document.querySelector("#app").hidden = true;
   document.querySelector("#landing").hidden = false;
   setMenuOpen(false);
+  refreshProjectLibrary();
   syncResumeButton();
-  document.querySelector("#home-title").focus({ preventScroll: true });
-  window.scrollTo({ top: 0 });
+  recordRoute("home", historyMode);
+  if (focus) document.querySelector("#home-title").focus({ preventScroll: true });
+  if (scroll) window.scrollTo({ top: 0, behavior: "instant" });
 }
 
-function navigate(page) {
+function syncProjectForNavigation() {
+  const latest = refreshProjectLibrary().find(item => item.project.id === state.project.id && !item.project.archived);
+  if (!latest) {
+    if (hasSavedProject(state)) selectFallbackProject();
+    return;
+  }
+  if (JSON.stringify(latest) === JSON.stringify(snapshotState())) return;
+  const spark = currentSparkResult;
+  const mirror = currentMirrorResult;
+  const latestSpark = spark === (state.sparkRuns[0] || null);
+  const latestMirror = mirror === (state.mirrorRuns[0] || null);
+  const page = state.activePage;
+  switchToStoredProject(latest);
+  state.activePage = page;
+  if (!latestSpark) currentSparkResult = spark;
+  if (!latestMirror) currentMirrorResult = mirror;
+}
+
+function navigate(page, { historyMode = "push", runId = "", scroll = true } = {}) {
+  syncProjectForNavigation();
   if (page !== "workspace" && (!hasSavedProject() || state.project.archived)) {
     showToast("请先新建项目，或打开一个进行中的项目");
     return;
   }
   state.activePage = page;
-  saveState({ touch: false });
+  recordRoute(page, historyMode, runId);
   document.querySelectorAll(".nav-item[data-nav]").forEach(item => {
     const active = item.dataset.nav === page;
     item.classList.toggle("active", active);
@@ -284,15 +404,33 @@ function navigate(page) {
   document.querySelector("#page-title").textContent = pageTitles[page];
   const moveFocus = document.querySelector(".student-sidebar").classList.contains("open");
   setMenuOpen(false);
-  renderPage();
+  renderPage({ restoreDraft: !runId });
   if (moveFocus) document.querySelector("#page-content").focus({ preventScroll: true });
-  window.scrollTo({ top: 0 });
+  if (scroll) window.scrollTo({ top: 0, behavior: "instant" });
 }
 
-function renderPage() {
+function renderPage({ restoreDraft = !new URLSearchParams(location.search).has("run") } = {}) {
   const renderers = { workspace: renderWorkspace, student: window.studentWorkbench.render, spark: renderSpark, mirror: renderMirror, personas: renderPersonas, materials: renderMaterials, reports: renderReports };
   document.querySelector("#page-content").innerHTML = (renderers[state.activePage] || renderWorkspace)();
-  bindPageEvents();
+  bindPageEvents(restoreDraft);
+}
+
+function renderPageHeading({ eyebrow, title, description, badge = "", actions = "" }) {
+  const titleMarkup = Array.isArray(title)
+    ? title.map(phrase => `<span class="page-heading-phrase">${escapeHTML(phrase)}</span>`).join("")
+    : escapeHTML(title);
+  return `
+    <header class="page-heading">
+      <div class="page-heading-main">
+        <p class="page-heading-eyebrow" lang="en">${escapeHTML(eyebrow)}</p>
+        <div class="page-heading-title">
+          <h1>${titleMarkup}</h1>
+          ${badge ? `<span class="tag tag-gray page-heading-badge">${escapeHTML(badge)}</span>` : ""}
+        </div>
+        ${description ? `<p class="page-heading-description">${escapeHTML(description)}</p>` : ""}
+      </div>
+      ${actions ? `<div class="heading-actions">${actions}</div>` : ""}
+    </header>`;
 }
 
 function projectCardHTML(snapshot, archived = false) {
@@ -397,10 +535,12 @@ function renderWorkspace() {
   const activeProjects = projectLibrary.filter(item => !item.project.archived);
   const archivedProjects = projectLibrary.filter(item => item.project.archived);
   return `
-    <div class="page-heading workspace-heading">
-      <div><p class="eyebrow">STUDENT WORKSPACE</p><h1>科创项目中心</h1><p>按项目管理需求、原型、验证证据和比赛材料；每个项目的数据彼此独立保存。</p></div>
-      <div class="heading-actions"><button class="button button-primary" data-action="enter-empty">＋ 新建项目</button></div>
-    </div>
+    ${renderPageHeading({
+      eyebrow: "Project Center",
+      title: "科创项目中心",
+      description: "按项目管理需求、原型、验证证据和比赛材料。每个项目的数据独立保存。",
+      actions: '<button class="button button-primary" type="button" data-action="enter-empty">＋ 新建项目</button>'
+    })}
     ${!activeProjects.length ? onboardingHTML() : ""}
     <div class="section-title project-list-title"><div><h2>进行中项目</h2><p>${activeProjects.length ? "按最近更新时间展示" : "创建第一个项目后，进度和验证资产会集中显示在这里"}</p></div><span class="tag tag-blue">${activeProjects.length} 个项目</span></div>
     <section class="student-project-gallery">
@@ -469,7 +609,11 @@ function renderSpark() {
   const currentApproach = currentSparkResult?.currentApproach ?? blueprint.currentApproach ?? "";
   const sources = currentSparkResult?.sources ?? (state.materials.some(hasMaterialExcerpt) ? ["用户资料"] : []);
   return `
-    <div class="page-heading"><div><p class="eyebrow" style="color:var(--orange)">SPARK / 播种</p><h1>把项目痛点写成可验证的假设</h1><p>选择本轮要看的用户视角，梳理需求假设和下一轮调研方向。</p></div><span class="tag tag-orange">需求探索</span></div>
+    ${renderPageHeading({
+      eyebrow: "Spark / Needs Discovery",
+      title: ["把项目痛点", "写成可验证的假设"],
+      description: "选择本轮要看的用户视角，梳理需求假设和下一轮调研方向。"
+    })}
     ${renderLabProject()}
     <div class="callout callout-info" style="margin-bottom:16px">根据你填写的场景和选中的人群生成本地推演与调研建议。真实需求需要结合访谈、观察或其他资料核对。</div>
     <div class="lab-layout">
@@ -574,19 +718,28 @@ function runSpark(form) {
       ["用户是否理解方案的结果并保有控制？", "观察用户能否解释结果、修改建议及处理一次出错情境。", "中"]
     ];
   const result = {
-    id: `s${Date.now()}`, title, scene, direction, currentApproach, personas: selected, sources, evidence, createdAt: Date.now(), date: "刚刚", isSample,
+    id: `s-${createProjectId()}`, title, scene, direction, currentApproach, personas: selected, sources, evidence, createdAt: Date.now(), date: "刚刚", isSample,
     dialogue: selected.map(persona => ({
       ...persona,
       text: texts[persona.id] || `根据画像描述「${persona.desc}」，访谈这一人群最近一次遇到的困难和采用的办法。`
     })),
     insights: hypotheses.map(([title, detail, level]) => ({ title, detail, source: "模板 · 待验证", level, evidenceIds: [] }))
   };
+  const previous = state;
+  state = {
+    ...state,
+    project: { ...state.project, stage: "需求探索", progress: Math.max(state.project.progress, 55) },
+    sparkRuns: [result, ...state.sparkRuns],
+    reports: [{ id: result.id, kind: "Spark", title: `${title} · 需求探索报告`, desc: "Persona 模拟讨论、资料来源与待验证假设", date: "刚刚", createdAt: result.createdAt, data: result }, ...state.reports]
+  };
+  try { saveState(); } catch {
+    state = previous;
+    return showToast("本轮报告暂未保存，填写内容仍保留在表单里。");
+  }
   currentSparkResult = result;
-  state.project.stage = "需求探索";
-  state.project.progress = Math.max(state.project.progress, 55);
-  state.sparkRuns.unshift(result);
-  state.reports.unshift({ id: result.id, kind: "Spark", title: `${title} · 需求探索报告`, desc: "Persona 模拟讨论、资料来源与待验证假设", date: "刚刚", createdAt: result.createdAt, data: result });
-  saveState();
+  clearToolDraft("spark");
+  recordRoute("spark", "replace");
+  form.querySelector(".submit-row small").textContent = "本轮报告已保存";
   document.querySelector("#spark-result").innerHTML = sparkResultHTML(result);
   bindResultTabs();
   showToast("Spark 模拟完成，报告已保存");
@@ -602,7 +755,11 @@ function renderMirror() {
     ? "临时作业和原有任务都进入新计划，用户能说明调整理由。"
     : blueprint.successMetric ?? "");
   return `
-    <div class="page-heading"><div><p class="eyebrow" style="color:var(--green)">MIRROR / 预演</p><h1>把原型改进点变成测试任务</h1><p>写下原型的关键步骤，记录要让目标用户完成的动作，演练答辩时的操作路径。</p></div><span class="tag tag-green">原型预演</span></div>
+    ${renderPageHeading({
+      eyebrow: "Mirror / Prototype Review",
+      title: ["把原型改进点", "变成测试任务"],
+      description: "写下原型的关键步骤，记录要让目标用户完成的动作，演练答辩时的操作路径。"
+    })}
     ${renderLabProject()}
     <div class="callout callout-info" style="margin-bottom:16px">Mirror 把你填写的步骤整理成测试计划，并按所选人群给出观察点。文字线索可用于准备测试，界面表现需要现场走查。</div>
     <div class="lab-layout">
@@ -738,7 +895,7 @@ function runMirror(form) {
   const task = String(data.get("task") || "").trim();
   const title = String(data.get("title") || "").trim() || state.project.name;
   const file = data.get("file");
-  const fileName = file && typeof file === "object" && "name" in file ? file.name : "";
+  const fileName = file?.name || form.dataset.draftFileName || "";
   const description = material.replace(/https?:\/\/\S+/gi, "").trim();
   const reference = String(data.get("reference") || "").trim();
   const successCriteria = String(data.get("successCriteria") || "").trim();
@@ -761,15 +918,16 @@ function runMirror(form) {
     { title:"用户能否理解结果并处理一次错误？", detail:"设置一次输入错误或误操作，观察用户能否理解反馈、修改或撤回。", level:"高", dimension:"错误预防与恢复" },
     { title:"数据用途和授权范围是否清楚？", detail:"如果任务涉及个人数据，请用户说明产品需要读取什么、为什么读取，以及如何拒绝或删除。", level:"中", dimension:"信任与隐私" }
   ];
-  const personaChecks = selected.map(persona => ({
-    name: persona.name,
-    ...(personaPainPrompts[persona.id] || {
-      concern: persona.desc,
-      observe: "围绕画像中的主要困难，记录这类用户在本轮任务的卡点、求助与恢复方式。"
-    })
-  }));
+  const personaChecks = selected.map(persona => {
+    const { concern, observe } = personaReviewPrompts(persona);
+    return {
+      name: persona.name,
+      concern: concern || persona.desc,
+      observe: observe || "围绕画像中的主要困难，记录这类用户在本轮任务的卡点、求助与恢复方式。"
+    };
+  });
   const result = {
-    id: `m${Date.now()}`,
+    id: `m-${createProjectId()}`,
     title, task, successCriteria, materialType, material, reference, fileName,
     personas: selected,
     coverage: mirrorCoverage(description),
@@ -779,11 +937,7 @@ function runMirror(form) {
     createdAt: Date.now(),
     date: "刚刚"
   };
-  currentMirrorResult = result;
-  state.project.stage = "体验验证";
-  state.project.progress = Math.max(state.project.progress,72);
-  state.mirrorRuns.unshift(result);
-  state.reports.unshift({
+  const report = {
     id: result.id,
     kind: "Mirror",
     title: `${result.title} · 原型预演报告`,
@@ -791,22 +945,78 @@ function runMirror(form) {
     date: "刚刚",
     createdAt: result.createdAt,
     data: result
-  });
-  saveState();
+  };
+  const previous = state;
+  state = {
+    ...state,
+    project: { ...state.project, stage: "体验验证", progress: Math.max(state.project.progress, 72) },
+    mirrorRuns: [result, ...state.mirrorRuns],
+    reports: [report, ...state.reports]
+  };
+  try { saveState(); } catch {
+    state = previous;
+    return showToast("本轮报告暂未保存，填写内容仍保留在表单里。");
+  }
+  currentMirrorResult = result;
+  clearToolDraft("mirror");
+  recordRoute("mirror", "replace");
+  form.querySelector(".submit-row small").textContent = "本轮报告已保存";
   document.querySelector("#mirror-result").innerHTML = mirrorResultHTML(result);
   bindResultTabs();
   showToast("Mirror 预演完成，报告已保存");
 }
 
+function personaReviewPrompts(persona) {
+  if (Object.hasOwn(personaPainPrompts, persona.id)) return personaPainPrompts[persona.id];
+  return { concern: persona.concern, observe: persona.observe };
+}
+
+function renderPersonaCard(persona) {
+  const preset = persona.type === "平台预设";
+  const tones = { p2: "warm", p3: "slate", p5: "slate", p6: "warm" };
+  const tone = preset ? (Object.hasOwn(tones, persona.id) ? tones[persona.id] : "blue") : "custom";
+  const monogram = persona.short || Array.from(persona.name || "")[0] || "P";
+  const traits = Array.isArray(persona.traits) ? persona.traits.filter(Boolean) : [];
+  const { concern, observe } = personaReviewPrompts(persona);
+  return `
+    <article class="card persona-profile persona-profile-${tone}" data-persona-profile="${escapeHTML(persona.id)}">
+      <div class="persona-profile-cover">
+        <span class="persona-profile-type">${preset ? "平台预设" : "项目自定义"}</span>
+        <span class="persona-profile-avatar" aria-hidden="true">${escapeHTML(monogram)}</span>
+      </div>
+      <div class="persona-profile-body">
+        <h2 class="persona-profile-name">${escapeHTML(persona.name)}</h2>
+        <p class="persona-profile-description">${escapeHTML(persona.desc || "尚未填写画像说明。")}</p>
+        ${traits.length ? `<ul class="persona-profile-traits" aria-label="特征标签">
+          ${traits.map(trait => `<li>${escapeHTML(trait)}</li>`).join("")}
+        </ul>` : ""}
+        ${concern || observe ? `<dl class="persona-profile-notes">
+          ${concern ? `<div><dt>关注点</dt><dd>${escapeHTML(concern)}</dd></div>` : ""}
+          ${observe ? `<div><dt>建议观察</dt><dd>${escapeHTML(observe)}</dd></div>` : ""}
+        </dl>` : ""}
+      </div>
+    </article>`;
+}
+
 function renderPersonas() {
   return `
-    <div class="page-heading"><div><p class="eyebrow">PERSONA LIBRARY</p><h1>Persona 用户库</h1><p>查看预设人群，或为当前项目添加自定义人群。每轮参与的人群在 Spark 或 Mirror 中勾选。</p></div><div class="heading-actions"><button class="button button-primary" data-open-modal="persona">＋ 创建 Persona</button></div></div>
-    <div class="grid grid-3">${state.personas.map(p=>`<article class="card persona-card"><div class="persona-cover"><span class="persona-large-avatar" style="background:${p.color}">${escapeHTML(p.short)}</span><span class="tag ${p.type === "平台预设" ? "tag-purple" : "tag-green"}">${escapeHTML(p.type)}</span></div><div class="persona-content"><h3>${escapeHTML(p.name)}</h3><p>${escapeHTML(p.desc)}</p><div class="trait-list">${p.traits.map(t=>`<span class="trait">${escapeHTML(t)}</span>`).join("")}</div></div></article>`).join("")}</div>`;
+    ${renderPageHeading({
+      eyebrow: "Persona Library",
+      title: pageTitles.personas,
+      description: `为「${state.project.name}」建立不同的用户视角，在 Spark 或 Mirror 中勾选本轮参与的人群。`,
+      actions: '<button class="button button-primary" type="button" data-open-modal="persona">＋ 创建 Persona</button>'
+    })}
+    <div class="persona-library-grid">${state.personas.map(renderPersonaCard).join("")}</div>`;
 }
 
 function renderMaterials() {
   return `
-    <div class="page-heading"><div><h1>项目证据库</h1><p>${escapeHTML(state.project.name)} · 管理访谈、问卷、公开资料和本地文件。</p></div><div class="heading-actions"><button class="button button-primary" data-open-modal="material">＋ 录入资料</button></div></div>
+    ${renderPageHeading({
+      eyebrow: "Evidence Library",
+      title: pageTitles.materials,
+      description: `${state.project.name} · 管理访谈、问卷、公开资料和本地文件。`,
+      actions: '<button class="button button-primary" type="button" data-open-modal="material">＋ 录入资料</button>'
+    })}
     <section class="card card-pad workbench-evidence-panel" aria-label="本项目资料">
       ${renderEvidenceImport()}
       ${renderEvidenceList(state.materials)}
@@ -815,12 +1025,78 @@ function renderMaterials() {
 
 function renderReports() {
   return `
-    <div class="page-heading"><div><p class="eyebrow">REPORTS</p><h1>验证报告</h1><p>集中查看每次 Spark 需求探索和 Mirror 体验预演的结论、来源类型与优先级。</p></div></div>
+    ${renderPageHeading({
+      eyebrow: "Validation Reports",
+      title: pageTitles.reports,
+      description: "集中查看每次 Spark 需求探索和 Mirror 体验预演的结论、来源类型与优先级。"
+    })}
     <div class="callout callout-warning" style="margin-bottom:18px"><strong>结论边界：</strong>Demo 中的报告是展示用示例。正式版会区分“原始资料事实、Persona 推演、模型推断与待验证假设”，避免把模拟结果当成真实用户结论。</div>
     ${state.reports.length ? `<div class="grid grid-3">${state.reports.map(r=>`<article class="card report-card"><div class="report-card-top"><span class="report-icon" style="${r.kind==="Mirror"?"color:var(--green);background:var(--green-soft)":""}">${r.kind==="Spark"?"✦":"◫"}</span><span class="tag ${r.kind==="Spark"?"tag-orange":"tag-green"}">${r.kind}</span></div><h3>${escapeHTML(r.title)}</h3><p>${escapeHTML(r.desc)}</p><div class="report-footer"><span>${formatRelativeTime(r.createdAt)} · 本地演示</span><span><button class="link-button" data-view-report="${r.id}">查看</button><button class="link-button" data-download-report="${r.id}">导出 ↓</button></span></div></article>`).join("")}</div>` : `<article class="card empty-state"><div><div class="empty-illustration">▥</div><h3>还没有验证报告</h3><p>完成一次 Spark 或 Mirror 后，报告会自动保存到这里，并支持导出为 Markdown 文档。</p><div style="display:flex;gap:8px;justify-content:center;margin-top:16px"><button class="button button-purple button-sm" data-go="spark">运行 Spark</button><button class="button button-green button-sm" data-go="mirror">运行 Mirror</button></div></div></article>`}`;
 }
 
-function bindPageEvents() {
+function toolDraftKey(tool, projectId = state.project.id) {
+  return `${STORAGE_KEY}.draft.${projectId}.${tool}`;
+}
+
+function clearToolDraft(tool, projectId) {
+  try { localStorage.removeItem(toolDraftKey(tool, projectId)); } catch {}
+}
+
+function bindToolForm(tool, run, restoreDraft) {
+  const form = document.getElementById(`${tool}-form`);
+  if (!form) return;
+  const key = toolDraftKey(tool);
+  const extras = form.querySelector(".lab-optional");
+  const status = form.querySelector(".submit-row small");
+  const controls = [...form.elements].filter(control => control.name && control.type !== "file");
+  const fileInput = form.querySelector('input[type="file"]');
+  function setStatus(text) {
+    if (status.textContent !== text) status.textContent = text;
+  }
+  function showFileName() {
+    const label = form.querySelector("#upload-label");
+    if (label) label.textContent = form.dataset.draftFileName ? `已记录文件名：${form.dataset.draftFileName}` : "选取本地文件";
+  }
+
+  if (restoreDraft) {
+    try {
+      const draft = JSON.parse(localStorage.getItem(key) || "null");
+      if (Array.isArray(draft?.entries)) {
+        const values = new URLSearchParams(draft.entries);
+        for (const control of controls) {
+          if (control.type === "checkbox") control.checked = values.getAll(control.name).includes(control.value);
+          else control.value = values.get(control.name) ?? control.value;
+        }
+        extras.open = Boolean(draft.optionsOpen);
+        if (draft.fileName) form.dataset.draftFileName = draft.fileName;
+        showFileName();
+        const output = form.querySelector("[data-persona-count]");
+        output.textContent = `已选 ${form.querySelectorAll(".run-persona-option input:checked").length} 类`;
+        setStatus("已恢复本项目草稿 · 本地规则推演");
+      }
+    } catch {}
+  }
+
+  form.addEventListener("input", event => {
+    if (event.target === fileInput) {
+      form.dataset.draftFileName = fileInput.files[0]?.name || "";
+      showFileName();
+    }
+    const entries = [...new FormData(form)].filter(([, value]) => typeof value === "string");
+    try {
+      localStorage.setItem(key, JSON.stringify({ entries, optionsOpen: extras.open, fileName: form.dataset.draftFileName }));
+      setStatus("草稿已保存在此浏览器");
+    } catch {
+      setStatus("草稿暂未保存，请勿离开本页");
+    }
+  });
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    run(form);
+  });
+}
+
+function bindPageEvents(restoreDraft) {
   document.querySelectorAll("[data-go]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.go)));
   document.querySelectorAll("[data-open-modal]").forEach(el => el.addEventListener("click", () => openModal(el.dataset.openModal)));
   document.querySelectorAll("[data-open-project]").forEach(el => el.addEventListener("click", () => openProject(el.dataset.openProject, el.dataset.projectDestination)));
@@ -829,8 +1105,8 @@ function bindPageEvents() {
   document.querySelectorAll("[data-project-archive]").forEach(el => el.addEventListener("click", () => archiveProject(el.dataset.projectArchive)));
   document.querySelectorAll("[data-project-restore]").forEach(el => el.addEventListener("click", () => restoreProject(el.dataset.projectRestore)));
   document.querySelectorAll("[data-project-delete]").forEach(el => el.addEventListener("click", () => deleteProject(el.dataset.projectDelete)));
-  document.querySelector("#spark-form")?.addEventListener("submit", e => { e.preventDefault(); runSpark(e.currentTarget); });
-  document.querySelector("#mirror-form")?.addEventListener("submit", e => { e.preventDefault(); runMirror(e.currentTarget); });
+  bindToolForm("spark", runSpark, restoreDraft);
+  bindToolForm("mirror", runMirror, restoreDraft);
   document.querySelector("#mirror-reference")?.addEventListener("invalid", event => {
     event.currentTarget.closest("details").open = true;
   });
@@ -844,7 +1120,6 @@ function bindPageEvents() {
     group.querySelector("[data-persona-count]").textContent = `已选 ${group.querySelectorAll('input:checked').length} 类`;
   });
   document.querySelectorAll("[data-export-student]").forEach(el => el.addEventListener("click", () => window.studentWorkbench.export()));
-  document.querySelector("#mirror-file")?.addEventListener("change", e => { const file=e.target.files[0]; document.querySelector("#upload-label").textContent=file?`已选择：${file.name}`:"也可以上传本地文件"; });
   document.querySelectorAll("[data-download-report]").forEach(el => el.addEventListener("click", () => downloadReport(el.dataset.downloadReport)));
   document.querySelectorAll("[data-view-report]").forEach(el => el.addEventListener("click", () => viewReport(el.dataset.viewReport)));
   document.querySelectorAll("[data-return-validation]").forEach(button => button.addEventListener("click", () => {
@@ -859,13 +1134,13 @@ function bindPageEvents() {
 
 function switchToStoredProject(snapshot) {
   state = normalizeStoredState(snapshot);
+  savedProjectSnapshot = snapshotState();
   currentSparkResult = state.sparkRuns[0] || null;
   currentMirrorResult = state.mirrorRuns[0] || null;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
 function openProject(id, destination = "student") {
-  const snapshot = projectLibrary.find(item => item.project.id === id);
+  const snapshot = refreshProjectLibrary().find(item => item.project.id === id);
   if (!snapshot) return showToast("没有找到这个项目");
   if (snapshot.project.archived) return showToast("请先恢复已归档项目");
   switchToStoredProject(snapshot);
@@ -875,7 +1150,7 @@ function openProject(id, destination = "student") {
 }
 
 function editProject(id) {
-  const snapshot = projectLibrary.find(item => item.project.id === id);
+  const snapshot = refreshProjectLibrary().find(item => item.project.id === id);
   if (!snapshot || snapshot.project.archived) return;
   switchToStoredProject(snapshot);
   navigate("workspace");
@@ -883,7 +1158,8 @@ function editProject(id) {
 }
 
 function duplicateProject(id) {
-  const source = projectLibrary.find(item => item.project.id === id);
+  const projects = refreshProjectLibrary();
+  const source = projects.find(item => item.project.id === id);
   if (!source) return;
   const copy = snapshotState(normalizeStoredState(source));
   const now = Date.now();
@@ -896,51 +1172,59 @@ function duplicateProject(id) {
     updatedAt: now
   };
   copy.updatedAt = now;
-  projectLibrary.unshift(copy);
-  saveProjectLibrary();
+  try { saveProjectLibrary([copy, ...projects]); } catch { return showToast("副本暂未保存，请检查浏览器存储。"); }
   renderPage();
   showToast("项目副本已创建");
 }
 
 function selectFallbackProject(excludedId = "") {
   const fallback = projectLibrary.find(item => !item.project.archived && item.project.id !== excludedId);
-  state = fallback ? normalizeStoredState(fallback) : initialState();
-  currentSparkResult = state.sparkRuns[0] || null;
-  currentMirrorResult = state.mirrorRuns[0] || null;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  switchToStoredProject(fallback || initialState());
 }
 
 function archiveProject(id) {
-  const index = projectLibrary.findIndex(item => item.project.id === id);
-  if (index < 0 || !confirm(`归档“${projectLibrary[index].project.name}”？之后可以在已归档项目中恢复。`)) return;
-  projectLibrary[index].project.archived = true;
-  projectLibrary[index].project.updatedAt = Date.now();
-  saveProjectLibrary();
+  const project = refreshProjectLibrary().find(item => item.project.id === id);
+  if (!project || !confirm(`归档“${project.project.name}”？之后可以在已归档项目中恢复。`)) return;
+  if (!setProjectArchiveStatus(id, true)) return;
   if (state.project.id === id) selectFallbackProject(id);
+  recordRoute("workspace", "replace");
   renderPage();
   syncResumeButton();
   showToast("项目已归档");
 }
 
 function restoreProject(id) {
-  const project = projectLibrary.find(item => item.project.id === id);
-  if (!project) return;
-  project.project.archived = false;
-  project.project.updatedAt = Date.now();
-  project.updatedAt = Date.now();
-  projectLibrary.sort((a, b) => (b.project.updatedAt || 0) - (a.project.updatedAt || 0));
-  saveProjectLibrary();
+  if (!setProjectArchiveStatus(id, false)) return;
   renderPage();
   syncResumeButton();
   showToast("项目已恢复");
 }
 
+function setProjectArchiveStatus(id, archived) {
+  const projects = refreshProjectLibrary();
+  if (!projects.some(item => item.project.id === id)) return false;
+  const updatedAt = Date.now();
+  try {
+    saveProjectLibrary(projects.map(item => item.project.id === id
+      ? { ...item, updatedAt, project: { ...item.project, archived, updatedAt } }
+      : item));
+    return true;
+  } catch {
+    showToast("项目状态暂未保存，请重试。");
+    return false;
+  }
+}
+
 function deleteProject(id) {
-  const project = projectLibrary.find(item => item.project.id === id);
+  const project = refreshProjectLibrary().find(item => item.project.id === id);
   if (!project || !confirm(`永久删除“${project.project.name}”及其全部本地记录？这个操作无法撤回。`)) return;
-  projectLibrary = projectLibrary.filter(item => item.project.id !== id);
-  saveProjectLibrary();
+  const projects = refreshProjectLibrary();
+  if (!projects.find(item => item.project.id === id)?.project.archived) return;
+  try { saveProjectLibrary(projects.filter(item => item.project.id !== id)); } catch { return showToast("无法删除项目，请重试。"); }
+  clearToolDraft("spark", id);
+  clearToolDraft("mirror", id);
   if (state.project.id === id) selectFallbackProject(id);
+  recordRoute("workspace", "replace");
   releaseEvidenceFiles(project.materials).catch(() => showToast("项目已删除，浏览器暂未清理项目原件。"));
   renderPage();
   syncResumeButton();
@@ -975,12 +1259,16 @@ let modalTrigger;
 
 function dismissModal(restoreFocus = true) {
   document.querySelector("#modal-root").replaceChildren();
+  document.querySelector("#app").inert = false;
+  document.querySelector("#landing").inert = false;
   if (restoreFocus) (modalTrigger?.isConnected ? modalTrigger : document.querySelector("#page-content")).focus();
   modalTrigger = null;
 }
 
 function bindModalDismissal(root) {
   modalTrigger = document.activeElement;
+  document.querySelector("#app").inert = true;
+  document.querySelector("#landing").inert = true;
   root.querySelector(".modal").addEventListener("click", event => event.stopPropagation());
   root.querySelectorAll("[data-close-modal]").forEach(element => {
     element.addEventListener("click", () => dismissModal());
@@ -1089,32 +1377,38 @@ function openProjectWizard(editing = false) {
     }
     const phase = form.querySelector('[name="wizard-stage"]:checked').value;
     const now = Date.now();
+    const previous = state;
+    const base = editing ? state : initialState();
+    state = {
+      ...base,
+      activePage: "workspace",
+      project: {
+        ...base.project,
+        name: form.querySelector("#wizard-name").value.trim(),
+        description: form.querySelector("#wizard-desc").value.trim() || "尚未填写项目说明",
+        stage: phase,
+        phase,
+        tasks,
+        priorityTask: form.querySelector("#wizard-priority").value || tasks[0],
+        competition: {
+          name: form.querySelector("#wizard-competition").value.trim(),
+          direction: form.querySelector("#wizard-direction").value.trim(),
+          deadline: form.querySelector("#wizard-deadline").value
+        },
+        archived: false,
+        createdAt: editing ? base.project.createdAt : now,
+        updatedAt: now,
+        progress: Math.max(Number(base.project.progress || 0), [10, 22, 38, 58, 76][projectStages.indexOf(phase)] || 10)
+      }
+    };
+    try { saveState(); } catch {
+      state = previous;
+      return showToast("项目暂未保存，已保留表单内容。");
+    }
     if (!editing) {
-      state = initialState();
       currentSparkResult = null;
       currentMirrorResult = null;
     }
-    state.project = {
-      ...state.project,
-      id: editing ? state.project.id : createProjectId(),
-      name: form.querySelector("#wizard-name").value.trim(),
-      description: form.querySelector("#wizard-desc").value.trim() || "尚未填写项目说明",
-      stage: phase,
-      phase,
-      tasks,
-      priorityTask: form.querySelector("#wizard-priority").value || tasks[0],
-      competition: {
-        name: form.querySelector("#wizard-competition").value.trim(),
-        direction: form.querySelector("#wizard-direction").value.trim(),
-        deadline: form.querySelector("#wizard-deadline").value
-      },
-      archived: false,
-      createdAt: editing ? state.project.createdAt : now,
-      updatedAt: now,
-      progress: Math.max(Number(state.project.progress || 0), [10, 22, 38, 58, 76][projectStages.indexOf(phase)] || 10)
-    };
-    state.activePage = "workspace";
-    saveState();
     dismissModal(false);
     showWorkspace();
     navigate("workspace");
@@ -1130,7 +1424,19 @@ function openModal(type) {
   const root = document.querySelector("#modal-root");
   const configs = {
     project: { title:state.project.name === "未命名项目" ? "创建第一个验证项目" : "编辑项目", body:`<div class="callout callout-info" style="margin-bottom:16px"><strong>只需先说明方向：</strong>后续可以在 Spark 中继续澄清需求，或直接在 Mirror 中上传已有材料。</div><div class="form-group"><label class="form-label" for="modal-name">项目名称</label><input id="modal-name" class="input" value="${state.project.name === "未命名项目" ? "" : escapeHTML(state.project.name)}" placeholder="例如：校园 AI 学习助手"></div><div class="form-group"><label class="form-label" for="modal-desc">一句话说明</label><textarea id="modal-desc" class="textarea" placeholder="目标用户、场景和希望解决的问题">${state.project.name === "未命名项目" ? "" : escapeHTML(state.project.description)}</textarea></div>`, save:state.project.name === "未命名项目" ? "创建项目" : "保存项目" },
-    persona: { title:"创建自定义 Persona", body:`<div class="form-group"><label class="form-label" for="modal-name">Persona 名称</label><input id="modal-name" class="input" placeholder="例如：通勤场景下的研究生"></div><div class="form-group"><label class="form-label" for="modal-desc">行为与需求说明</label><textarea id="modal-desc" class="textarea" placeholder="描述目标、情境、行为特点和主要顾虑"></textarea></div><div class="form-group"><label class="form-label" for="modal-traits">特征标签</label><input id="modal-traits" class="input" placeholder="用逗号分隔，如：时间紧张, 移动端, 重视效率"></div>`, save:"创建 Persona" },
+    persona: {
+      title: "创建自定义 Persona",
+      body: `
+        <div class="form-group"><label class="form-label" for="modal-name">Persona 名称</label><input id="modal-name" class="input" placeholder="例如：通勤场景下的研究生"></div>
+        <div class="form-group"><label class="form-label" for="modal-desc">行为与需求说明</label><textarea id="modal-desc" class="textarea" placeholder="描述目标、情境、行为特点和主要顾虑"></textarea></div>
+        <div class="form-group"><label class="form-label" for="modal-traits">特征标签</label><input id="modal-traits" class="input" placeholder="用逗号分隔，如：时间紧张，移动端，重视效率"></div>
+        <details class="persona-form-extra">
+          <summary>补充关注点和观察建议（选填）</summary>
+          <div class="form-group"><label class="form-label" for="modal-persona-concern">关注点</label><input id="modal-persona-concern" class="input" placeholder="例如：网络不稳定时担心任务丢失"></div>
+          <div class="form-group"><label class="form-label" for="modal-persona-observe">建议观察</label><textarea id="modal-persona-observe" class="textarea" placeholder="例如：中断重连后，能否找到未完成的任务"></textarea></div>
+        </details>`,
+      save: "创建 Persona"
+    },
     material: { title:"添加一份需求资料", body:`<div class="form-group"><label class="form-label" for="modal-name">资料标题</label><input id="modal-name" class="input" placeholder="例如：第 3 位用户访谈摘录"></div><div class="grid grid-2"><div class="form-group"><label class="form-label" for="modal-type">资料类型</label><select id="modal-type" class="select"><option>用户访谈</option><option>问卷</option><option>用户评价</option><option>客服记录</option><option>行业资料</option><option>竞品资料</option></select></div><div class="form-group"><label class="form-label" for="modal-source">来源</label><input id="modal-source" class="input" placeholder="用户上传 / 公开网页"></div></div><div class="form-group"><label class="form-label" for="modal-desc">原始内容或摘要</label><textarea id="modal-desc" class="textarea" placeholder="尽量保留原始表达，便于后续追溯"></textarea></div>`, save:"保存资料" }
   };
   const c = configs[type];
@@ -1145,17 +1451,41 @@ function saveModal(type) {
   const name = root.querySelector("#modal-name")?.value.trim();
   const desc = root.querySelector("#modal-desc")?.value.trim();
   if (!name) { showToast("请先填写名称"); return; }
+  const previous = state;
+  let personaId;
   if (type === "project") {
-    state.project.name = name; state.project.description = desc || "尚未填写项目说明"; state.project.stage = "探索期"; state.project.progress = Math.max(state.project.progress,20);
+    state = { ...state, project: { ...state.project, name, description: desc || "尚未填写项目说明", stage: "探索期", progress: Math.max(state.project.progress, 20) } };
   } else if (type === "persona") {
     const traits = root.querySelector("#modal-traits").value.split(/[,，]/).map(x=>x.trim()).filter(Boolean).slice(0,4);
-    state.personas.push({ id:`p${Date.now()}`,name,short:name[0],color:"#5d7cbf",type:"自定义",desc:desc||"用户创建的自定义 Persona",traits:traits.length?traits:["自定义"] });
+    personaId = createProjectId();
+    state = { ...state, personas: [...state.personas, {
+      id: personaId,
+      name,
+      short: Array.from(name)[0],
+      color: "#5d7cbf",
+      type: "自定义",
+      desc: desc || "用户创建的自定义 Persona",
+      traits: traits.length ? traits : ["自定义"],
+      concern: root.querySelector("#modal-persona-concern").value.trim(),
+      observe: root.querySelector("#modal-persona-observe").value.trim()
+    }] };
   } else {
     const materialType = root.querySelector("#modal-type").value;
-    state.materials.unshift({ id:createProjectId(),title:name,type:materialType,source:root.querySelector("#modal-source").value.trim()||"用户录入",content:desc||"未填写内容摘要",createdAt:Date.now(),icon:materialType[0] });
-    state.project.progress = Math.max(state.project.progress,35);
+    const material = { id:createProjectId(),title:name,type:materialType,source:root.querySelector("#modal-source").value.trim()||"用户录入",content:desc||"未填写内容摘要",createdAt:Date.now(),icon:materialType[0] };
+    state = { ...state, materials: [material, ...state.materials], project: { ...state.project, progress: Math.max(state.project.progress, 35) } };
   }
-  saveState(); dismissModal(false); renderPage(); showToast("已保存到本地演示项目");
+  try { saveState(); } catch {
+    state = previous;
+    return showToast("暂未保存，已保留表单内容。");
+  }
+  dismissModal(false);
+  renderPage();
+  const savedHeading = personaId && document.querySelector(`[data-persona-profile="${CSS.escape(personaId)}"] h2`);
+  if (savedHeading) {
+    savedHeading.tabIndex = -1;
+    savedHeading.focus();
+  } else document.querySelector(`.page-heading [data-open-modal="${type}"]`)?.focus();
+  showToast("已保存到本地项目");
 }
 
 function viewReport(id) {
@@ -1163,10 +1493,10 @@ function viewReport(id) {
   if (!report) return;
   if (report.kind === "Spark") {
     currentSparkResult = normalizeSparkRun(report.data);
-    navigate("spark");
+    navigate("spark", { runId: id });
   } else {
     currentMirrorResult = normalizeMirrorRun(report.data);
-    navigate("mirror");
+    navigate("mirror", { runId: id });
   }
   showToast("已恢复这次验证结果");
 }
@@ -1174,13 +1504,17 @@ function viewReport(id) {
 function useMirrorPlan(id) {
   const run = state.mirrorRuns.find(item => item.id === id);
   if (!run) return;
-  state.mirrorValidationRunId = id;
+  const previous = state;
   const project = getStudentProject();
   const updates = {};
   if (run.task && !hasStudentFields(project, "testTask")) updates.testTask = run.task;
   if (run.successCriteria && !hasStudentFields(project, "successMetric")) updates.successMetric = run.successCriteria;
+  state = { ...state, mirrorValidationRunId: id };
   if (Object.keys(updates).length) state.studentProject = { ...state.studentProject, ...updates };
-  saveState();
+  try { saveState(); } catch {
+    state = previous;
+    return showToast("测试计划暂未关联，请重试。");
+  }
   studentActiveView = "validation";
   navigate("student");
   document.querySelector(".linked-mirror-plan h2")?.focus();
@@ -1230,7 +1564,7 @@ document.addEventListener("click", e => {
   if (action === "enter-sample") {
     const view = trigger.dataset.samplePage;
     studentActiveView = view === "test" ? "validation" : "overview";
-    enterDemo("sample", ["spark", "mirror", "personas"].includes(view) ? view : "student");
+    if (!enterDemo("sample", ["spark", "mirror", "personas"].includes(view) ? view : "student")) return;
     if (view === "personas") openModal("persona");
     if (view === "test") focusWorkbenchSection(document.querySelector("#workbench-live-test h2"));
   }
@@ -1244,13 +1578,21 @@ document.addEventListener("click", e => {
     setMenuOpen(!open, open);
   }
   if (action === "reset-demo") {
+    syncProjectForNavigation();
+    if (!hasSavedProject(state)) return showToast("当前没有可重置的项目");
     if (confirm(`重置“${state.project.name}”的资料、Persona 和验证记录？其他项目不会受到影响。`)) {
+      const previous = state;
       const oldMaterials = state.materials;
       const meta = { ...state.project, progress: 0, updatedAt: Date.now() };
       state = initialState(meta);
+      try { saveState({ replace: true }); } catch {
+        state = previous;
+        return showToast("项目暂未重置，请重试。");
+      }
+      clearToolDraft("spark");
+      clearToolDraft("mirror");
       currentSparkResult = null;
       currentMirrorResult = null;
-      saveState();
       releaseEvidenceFiles(oldMaterials).catch(() => showToast("项目已重置，浏览器暂未清理项目原件。"));
       navigate("workspace");
       showToast("当前项目记录已重置");
@@ -1261,17 +1603,23 @@ document.addEventListener("click", e => {
 
 document.addEventListener("keydown", event => {
   const modal = document.querySelector("#modal-root .modal");
+  const drawer = document.querySelector(".student-sidebar.open");
   if (event.key === "Escape") {
     if (modal) dismissModal();
-    else if (document.querySelector(".student-sidebar.open")) setMenuOpen(false, true);
+    else if (drawer) setMenuOpen(false, true);
     return;
   }
-  if (event.key !== "Tab" || !modal) return;
-  const controls = [...modal.querySelectorAll('button, input, textarea, select, a[href]')]
-    .filter(element => !element.disabled && element.getClientRects().length);
+  const layer = modal || drawer;
+  if (event.key !== "Tab" || !layer) return;
+  const controls = [...layer.querySelectorAll('button, input, textarea, select, a[href], summary, [tabindex]')]
+    .filter(element => !element.disabled && element.tabIndex >= 0 && element.getClientRects().length);
   const first = controls[0];
   const last = controls.at(-1);
-  if (event.shiftKey && document.activeElement === first) {
+  if (!first) return;
+  if (!layer.contains(document.activeElement)) {
+    event.preventDefault();
+    (event.shiftKey ? last : first).focus();
+  } else if (event.shiftKey && document.activeElement === first) {
     event.preventDefault();
     last.focus();
   } else if (!event.shiftKey && document.activeElement === last) {
@@ -1281,10 +1629,40 @@ document.addEventListener("keydown", event => {
 });
 
 document.querySelectorAll("[data-nav]").forEach(el => el.addEventListener("click", e => { e.preventDefault(); navigate(el.dataset.nav); }));
-syncResumeButton();
-const homeAnchor = document.getElementById(location.hash.slice(1));
-const directHome = new URLSearchParams(location.search).get("view") === "home" || document.querySelector("#landing").contains(homeAnchor);
-if (projectLibrary.length && !directHome) {
-  enterDemo("resume", "workspace");
+
+function openAppRoute({ page, projectId, panel, runId }, { historyMode, focus, scroll = true }) {
+  const project = projectLibrary.find(item => item.project.id === projectId && !item.project.archived);
+  if (project) switchToStoredProject(project);
+  else if (projectId) selectFallbackProject();
+  else syncProjectForNavigation();
+  const destination = Object.hasOwn(pageTitles, page) && (!projectId || project) && hasSavedProject(state) ? page : "workspace";
+  studentActiveView = studentViews.some(([id]) => id === panel) ? panel : "overview";
+  const report = state.reports.find(item => item.id === runId && item.kind.toLowerCase() === destination);
+  if (report?.kind === "Spark") currentSparkResult = normalizeSparkRun(report.data);
+  if (report?.kind === "Mirror") currentMirrorResult = normalizeMirrorRun(report.data);
+  showWorkspace();
+  navigate(destination, { historyMode, runId: report?.id, scroll });
+  if (focus) document.querySelector("#page-content").focus({ preventScroll: true });
 }
 
+function restoreNavigation({ fromHistory = false } = {}) {
+  if (document.querySelector("#modal-root .modal")) dismissModal(false);
+  const params = new URLSearchParams(location.search);
+  const page = params.get("view");
+  const landing = document.querySelector("#landing");
+  const homeAnchor = document.getElementById(location.hash.slice(1));
+  if (!Object.hasOwn(pageTitles, page) || landing.contains(homeAnchor)) {
+    showLanding({ historyMode: "replace", focus: fromHistory && landing.hidden, scroll: false });
+    return;
+  }
+  refreshProjectLibrary();
+  openAppRoute({
+    page,
+    projectId: params.get("project"),
+    panel: params.get("panel"),
+    runId: params.get("run")
+  }, { historyMode: "replace", focus: fromHistory, scroll: false });
+}
+
+window.addEventListener("popstate", () => restoreNavigation({ fromHistory: true }));
+restoreNavigation();

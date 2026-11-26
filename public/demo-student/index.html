@@ -4,22 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="PersonaLab 学生科创验证工作台。用访谈资料和自定义 Persona 找出待验证的问题，预演原型，再记录真人测试结果和改动依据。" />
-    <meta name="theme-color" content="#fbf8f4" />
-    <title>PersonaLab V2.0-student · 学生科创验证工作台</title>
-    <link rel="icon" href="./assets/personalab-logo-icon.png" />
-    <link rel="preload" as="image" href="./assets/personalab-student-logo.webp" type="image/webp" />
+    <meta name="theme-color" content="#f4f8fd" />
+    <meta name="color-scheme" content="light" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="PersonaLab · 让好创意经得起验证" />
+    <meta property="og:description" content="从访谈和问卷出发设置不同 AI Persona，先看大家可能卡在哪一步，再用真人测试确认要改什么。" />
+    <meta property="og:image" content="./assets/og-cover.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <title>PersonaLab · 学生科创验证工作台</title>
+    <link rel="icon" type="image/png" sizes="48x48" href="./assets/favicon-48.png" />
+    <link rel="apple-touch-icon" href="./assets/favicon-180.png" />
+    <link rel="preload" as="image" href="./assets/brand-wordmark.webp" type="image/webp" />
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./student-blue.css?v=2.3" />
-    <link rel="stylesheet" href="./student-polish.css?v=2.7" />
-    <link rel="stylesheet" href="./student-workbench.css?v=2.8" />
-    <link rel="stylesheet" href="./student-home.css?v=2.10" />
+    <link rel="stylesheet" href="./student-polish.css?v=2.13" />
+    <link rel="stylesheet" href="./student-workbench.css?v=3.1" />
+    <link rel="stylesheet" href="./student-home.css?v=2.15" />
+    <link rel="stylesheet" href="./hero-dist/hero.css?v=1.3" />
+    <script src="./hero-dist/hero.js?v=1.3" defer></script>
   </head>
   <body>
     <main id="landing" class="landing student-home">
       <header class="home-header">
         <div class="home-wrap home-nav">
           <a class="home-brand" href="#landing" aria-label="PersonaLab Student 首页">
-            <span class="student-brand-mark" aria-hidden="true"></span>
             <span class="student-brand-wordmark" aria-hidden="true"></span>
             <span class="home-student-badge" aria-hidden="true">STUDENT</span>
           </a>
@@ -30,7 +38,7 @@
 
       <div class="home-hero-zone">
       <section class="home-intro" aria-labelledby="home-title">
-        <div class="home-wrap home-intro-layout">
+        <div class="home-wrap home-intro-layout" id="student-hero-static">
           <div class="home-copy">
             <p class="home-product">PersonaLab · 学生科创验证工作台</p>
             <h1 id="home-title" tabindex="-1"><span>让好创意，</span><span>经得起<em>验证</em>。</span></h1>
@@ -89,6 +97,7 @@
           </aside>
           </article>
         </div>
+        <div id="student-hero"></div>
       </section>
 
       <section class="home-wrap home-workflow" id="workflow" aria-labelledby="workflow-title">
@@ -194,7 +203,7 @@
 
     <div id="app" class="app-shell" hidden>
       <aside class="sidebar student-sidebar" id="student-navigation">
-        <div class="sidebar-top"><a class="brand brand-sidebar" href="#" data-nav="workspace" aria-label="PersonaLab Student 项目总览"><span class="student-brand-mark" aria-hidden="true"></span><span class="student-brand-wordmark" aria-hidden="true"></span></a><span class="student-side-badge" aria-hidden="true">STUDENT</span></div>
+        <div class="sidebar-top"><a class="brand brand-sidebar" href="#" data-nav="workspace" aria-label="PersonaLab Student 项目总览"><span class="student-brand-wordmark" aria-hidden="true"></span></a><span class="student-side-badge" aria-hidden="true">STUDENT</span></div>
         <nav class="main-nav" aria-label="主要导航">
           <p class="nav-group-label">项目中心</p>
           <button class="nav-item active" data-nav="workspace"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label"><b>项目总览</b></span></button>
@@ -209,7 +218,7 @@
         </nav>
         <div class="sidebar-bottom"><div class="xiaop-mini-card"><span class="student-mascot" aria-hidden="true"></span><div><strong>小P 提醒</strong><small>模拟洞察不是用户证据</small></div></div><div class="sidebar-utility"><button class="text-button" data-action="show-landing">返回产品首页</button><button class="text-button" data-action="reset-demo">重置当前项目</button></div></div>
       </aside>
-      <button class="sidebar-backdrop" data-action="toggle-menu" aria-label="关闭导航"></button>
+      <button class="sidebar-backdrop" type="button" tabindex="-1" data-action="toggle-menu" aria-label="关闭导航"></button>
       <div class="app-main">
         <header class="topbar"><button class="mobile-menu" data-action="toggle-menu" aria-label="项目导航" aria-controls="student-navigation" aria-expanded="false">☰</button><div class="breadcrumb"><span>PersonaLab Student</span><b>/</b><strong id="page-title">项目总览</strong></div><div class="topbar-actions"><span class="local-state"><span class="status-dot"></span>本地自动保存</span><button class="icon-button" aria-label="帮助" data-action="show-help">?</button></div></header>
         <div id="page-content" class="page-content" aria-live="polite" tabindex="-1"></div>
@@ -218,9 +227,9 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <div id="modal-root"></div>
-    <script src="./student-evidence.js?v=2.8"></script>
-    <script src="./student.js?v=2.8"></script>
+    <script src="./student-evidence.js?v=2.9"></script>
+    <script src="./student.js?v=2.11"></script>
     <script src="./student-home.js?v=2.10"></script>
-    <script src="./app.js?v=2.9.4"></script>
+    <script src="./app.js?v=2.9.9"></script>
   </body>
 </html>

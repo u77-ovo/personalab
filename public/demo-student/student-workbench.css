@@ -1,33 +1,54 @@
-.student-workbench { --workbench-line: var(--line); --workbench-soft: var(--canvas); }
-.workbench-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(240px, 24vw, 280px);
-  align-items: center;
-  gap: 24px;
-  margin-bottom: 18px;
-  padding: 24px 26px;
-  border: 1px solid var(--workbench-line);
-  border-inline-start: 4px solid var(--blue);
-  border-radius: var(--panel-radius);
+#app {
+  --line: #e0e4e9;
+  --canvas: #f8f7f4;
+  --shadow-soft: 0 2px 6px #172d4309;
+}
+.app-main { background: var(--canvas); }
+.app-main > .topbar {
+  border-bottom-color: var(--line);
   background: #fff;
 }
-.workbench-context, .workbench-description, .workbench-controls label {
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--text-sm);
+
+.student-workbench { --workbench-line: var(--line); --workbench-soft: var(--canvas); }
+.workbench-controls {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px 12px;
+  width: min(310px, 100%);
+  padding: 9px 12px;
+  border: 1px solid var(--workbench-line);
+  border-radius: 12px;
+  background: #fff;
 }
-.workbench-context { display: flex; align-items: center; gap: 8px; color: var(--blue); font-weight: 650; }
-.workbench-identity h1 {
-  margin: 8px 0 6px;
-  color: var(--navy);
-  font-size: clamp(1.55rem, 3.4vw, 2.45rem);
-  line-height: 1.2;
-  overflow-wrap: anywhere;
-}
-.workbench-description { line-height: 1.65; overflow-wrap: anywhere; }
-.workbench-controls { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: center; gap: 9px 10px; }
+.workbench-controls label { color: var(--muted); font-size: var(--text-xs); font-weight: 650; }
 .workbench-controls .select { width: 100%; min-width: 0; padding-right: 24px; text-overflow: ellipsis; }
-.student-workbench .student-view-tabs { margin-bottom: 20px; }
+.student-workbench .student-view-tabs {
+  grid-template-columns: repeat(4, max-content);
+  gap: clamp(6px, 1.2vw, 16px);
+  margin-bottom: 20px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid #dadfe6;
+  border-radius: 0;
+  background: transparent;
+}
+.student-workbench .student-view-tab {
+  padding-inline: 12px;
+  border-radius: 7px 7px 0 0;
+  color: var(--muted);
+}
+.student-workbench .student-view-tab:hover { background: #eff2f6; }
+.student-workbench .student-view-tab.active {
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+}
+.student-workbench .student-view-tab.active::after {
+  inset-inline: 9px;
+  bottom: -1px;
+  background: #b54b25;
+}
 .student-workbench [tabindex="-1"] { scroll-margin-top: 92px; }
 .student-workbench .card-pad h2, .workbench-progress h2 {
   margin: 0;
@@ -42,7 +63,16 @@
   line-height: 1.55;
 }
 
-.workbench-overview-grid { display: grid; grid-template-columns: minmax(285px, 1.25fr) minmax(0, 2fr); gap: 14px; margin-bottom: 18px; }
+.workbench-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(275px, 1.25fr) minmax(0, 2fr);
+  margin-bottom: 18px;
+  border: 1px solid var(--workbench-line);
+  border-radius: var(--panel-radius);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+.workbench-overview-grid .card { border: 0; background: transparent; box-shadow: none; }
 .workbench-progress { display: flex; align-items: center; gap: 17px; padding: 18px; }
 .workbench-progress .link-button { margin-top: 5px; line-height: 1.4; text-align: left; }
 .workbench-ring {
@@ -72,7 +102,8 @@
 .workbench-tone-evidence, .workbench-tone-mirror { --item-tone: #194d8a; --item-fill: #edf5ff; --item-line: #b9d0ef; }
 .workbench-tone-spark { --item-tone: #85390e; --item-fill: #fff4ec; --item-line: #ebc4a9; }
 .workbench-counts, .workbench-ledger, .workbench-evidence-list, .validation-item-list { margin: 0; padding: 0; list-style: none; }
-.workbench-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.workbench-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.workbench-counts li { min-width: 0; border-inline-start: 1px solid var(--workbench-line); }
 .workbench-count {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -80,11 +111,14 @@
   gap: 8px;
   width: 100%;
   height: 100%;
-  padding: 13px;
+  padding: 15px;
+  border-radius: 0;
   text-align: left;
   cursor: pointer;
 }
-.workbench-count:hover { border-color: var(--item-line); background: var(--item-fill); }
+.workbench-counts li:last-child .workbench-count { border-start-end-radius: var(--panel-radius); border-end-end-radius: var(--panel-radius); }
+.workbench-overview-grid .workbench-count:hover { background: var(--item-fill); }
+.workbench-count:focus-visible { outline-offset: -3px; }
 .workbench-count-icon, .workbench-evidence-icon {
   display: grid;
   place-items: center;
@@ -197,17 +231,19 @@
 
 @media (max-width: 1180px) {
   .workbench-overview-grid { grid-template-columns: 1fr; }
+  .workbench-counts { border-top: 1px solid var(--workbench-line); }
+  .workbench-counts li:first-child { border-inline-start: 0; }
+  .workbench-counts li:first-child .workbench-count { border-end-start-radius: var(--panel-radius); }
+  .workbench-counts li:last-child .workbench-count { border-start-end-radius: 0; }
 }
 @media (max-width: 1050px) {
   .validation-columns { grid-template-columns: 1fr; }
 }
 @media (max-width: 620px) {
-  .workbench-header { grid-template-columns: 1fr; gap: 13px; padding: 16px; }
-  .workbench-controls { grid-template-columns: max-content minmax(0,1fr); }
-  .student-workbench .student-view-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; padding: 3px; }
+  .workbench-controls { width: 100%; }
+  .student-workbench .student-view-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; }
   .student-workbench .student-view-tab { padding-inline: 4px; font-size: var(--text-xs); white-space: nowrap; }
-  .workbench-counts { gap: 6px; }
-  .workbench-count { padding: 8px; }
+  .workbench-count { padding: 10px; }
   .workbench-count-arrow { display: none; }
   .workbench-ledger li { grid-template-columns: minmax(0,1fr) auto; gap: 4px 7px; }
   .workbench-ledger .workbench-time { grid-column: 1 / -1; text-align: left; }
